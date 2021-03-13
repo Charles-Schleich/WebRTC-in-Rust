@@ -1,0 +1,80 @@
+[package]
+name = "wasm_client"
+version = "0.1.0"
+authors = ["charles"]
+edition = "2018"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["console_error_panic_hook"]
+
+[dependencies]
+arc-swap = "1.2.0"
+async-std = "1.9.0"
+log = "0.4.11"
+js-sys = "0.3"
+serde = { version = "1.0", features = ["derive"] }
+serde-json-wasm = "0.3.1"
+wasm-bindgen = { version = "0.2.63", features = ["serde-serialize"] }
+wasm-logger = "0.2.0"
+wasm-bindgen-futures = "0.4.20"
+
+# tungstenite = "0.12.0"
+# websocket = "0.24.0"
+# [dependencies.websocket]
+# git = "https://github.com/websockets-rs/rust-websocket.git"
+
+# The `console_error_panic_hook` crate provides better debugging of panics by
+# logging them with `console.error`. This is great for development, but requires
+# all the `std::fmt` and `std::panicking` infrastructure, so isn't great for
+# code size when deploying.
+console_error_panic_hook = { version = "0.1.6", optional = true }
+
+[dependencies.web-sys]
+version = "0.3.47"
+features = [
+  "MessageEvent",
+  "RtcPeerConnection",
+  "RtcSignalingState",
+  "RtcSdpType",
+  "RtcSessionDescriptionInit",
+  "RtcPeerConnectionIceEvent",
+  "RtcIceCandidate",
+  "RtcIceCandidateInit",
+  "RtcIceConnectionState",
+  "RtcDataChannel",
+  "RtcDataChannelEvent",
+  "RtcSessionDescription",
+  "RtcIceGatheringState",
+  "Navigator",
+  "MediaDevices",
+  "Window", 
+  "Document",
+  "MediaStream",
+  "Element",
+  "MediaStreamConstraints",
+  "HtmlVideoElement",
+  "HtmlMediaElement", 
+  "WebSocket",
+  "HtmlButtonElement",
+  "HtmlParagraphElement",
+  "HtmlLabelElement",
+  "EventListener",
+  "MouseEvent",
+  "BinaryType",
+  "Blob",
+  "ErrorEvent",
+  "FileReader",
+  "ProgressEvent",
+  "HtmlButtonElement",
+  "HtmlInputElement",
+]
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3.13"
+
+[profile.release]
+# Tell `rustc` to optimize for small code size.
+opt-level = "s"

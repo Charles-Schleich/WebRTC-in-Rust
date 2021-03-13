@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+</head>
+
+<body style="background-color:rgb(90, 36, 14);">
+    <section id="app"></section>
+    <div id="container">
+        <h1><a title="WebRTC in RUST !" style="color: white;">WebRTC in Rust</a></h1>
+
+        <h3><a title="Peer 1 Video" style="color: white;">Peer 1 Video</a></h3>
+        <video id="peer_1_video" width="320" height="240" autoplay muted></video>
+        <br>
+        <button id="StartInitiator" style="height:50px">Start Initiator</button>
+        <!-- <label id="InitiatorState">State</label> -->
+        <br>
+        <button id="SendMessage">SendMessage</button>
+        <input type="text" id="local_message" name="local_message">
+        <br><br>
+
+        <hr>
+        <button id="print RTC State" style="height:50px">Print RTC State</button>
+        <!-- <label id="errorMsg" style="color: red;">e</label> -->
+        <hr>
+        <h3><a title="Peer 2 Video" style="color: white;">Peer 2 Video</a></h3>
+        <video id="peer_2_video" width="320" height="240" autoplay playsinline></video>
+        <br>
+        <button id="StartListenner" style="height:50px">Start Listenner</button>
+        <!-- <label id="ListennerState">State</label> -->
+        <br>
+        <hr>
+
+
+
+        <div id="errorMsg"></div>
+    </div>
+    <hr>
+
+
+    <script type="module">
+        import init from '/pkg/wasm_client.js';
+        init('/pkg/wasm_client_bg.wasm');
+    </script>
+</body>
+
+</html>

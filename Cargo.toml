@@ -1,0 +1,6 @@
+# Potential Workspace IDEAs
+[workspace]
+members = [
+    "wasm_client",
+    "signalling-server",
+]

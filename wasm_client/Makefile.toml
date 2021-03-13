@@ -1,0 +1,31 @@
+[env]
+PORT = "9000"
+
+[config]
+skip_core_tasks = true
+
+# ---- SERVE ----
+
+[tasks.serve]
+description = "Start Application Server (to host Web Page)"
+install_crate = { crate_name = "microserver", binary = "microserver", test_arg = "-h" }
+command = "microserver"
+args = ["--port", "${PORT}"]
+
+
+# ---- BUILD ----
+
+[tasks.build]
+description = "Build with wasm-pack"
+install_crate = { crate_name = "wasm-pack", binary = "wasm-pack", test_arg = "-V" }
+command = "wasm-pack"
+args = ["build", "--target", "web", "--out-name", "wasm_client", "--dev"]
+
+[tasks.build_release]
+description = "Build with wasm-pack in release mode"
+install_crate = { crate_name = "wasm-pack", binary = "wasm-pack", test_arg = "-V" }
+command = "wasm-pack"
+args = ["build", "--target", "web", "--out-name", "wasm_client"]
+
+[tasks.servesignal]
+# Empty Task to bypass for wasm_client

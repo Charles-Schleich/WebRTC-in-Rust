@@ -1,0 +1,27 @@
+[env]
+PORT = "9000"
+
+[config]
+skip_core_tasks = true
+
+[tasks.servesignal]
+description = "Start Singalling server"
+command = "cargo"
+args = ["run"]
+
+
+# [tasks.serve]
+
+
+# ---- BUILD ----
+
+[tasks.build]
+description = "Build Signalling Server"
+command = "cargo"
+args = ["build"]
+
+[tasks.build_release]
+description = "Build Signalling Server Release !"
+command = "cargo"
+args = ["build", "--release"]
+
