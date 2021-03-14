@@ -1,9 +1,13 @@
 # Web RTC in Rust !
 ![](https://devopedia.org/images/article/39/4276.1518788244.png)
 
+
+
+
+
 Starter for your WebRTC needs in Rust 🦀🕸
 
-### Start Right away
+## Start Right away
 To build project root  
 Terminal 1 🛠 : `cargo make build`  
   
@@ -13,8 +17,7 @@ Terminal 1 🚀 : `cargo make serve`
 Terminal 2 🔌 : `cargo make servesignal`
 
 
-
-### Usefull Terminology
+## Usefull Terminology
 - ICE  : Interactive Connectivity Establishment
 - SCTP : Stream Control Transmission Protocol (SCTP)
 - SDP  : Session Description Protocol

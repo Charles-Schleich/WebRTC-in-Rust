@@ -12,6 +12,18 @@ use log::{info,warn,error,debug};
 use wasm_bindgen::JsCast;
 use serde::{Serialize, Deserialize};
 
+
+// use web_sys::{
+//     MessageEvent, 
+//     RtcDataChannelEvent, RtcPeerConnection, RtcPeerConnectionIceEvent, RtcSdpType,RtcSessionDescriptionInit,
+//     RtcDataChannel, RtcIceCandidate, RtcIceCandidateInit,  RtcIceConnectionState,
+//     MediaStream, MediaStreamConstraints,
+//     Document, 
+//     WebSocket,
+//     HtmlInputElement, HtmlLabelElement,
+//     Element, HtmlVideoElement, HtmlButtonElement,
+// };
+ 
 // local
 use super::*;
 
@@ -59,9 +71,6 @@ pub async fn open_web_socket(rtc_conn:RtcPeerConnection) -> Result<WebSocket,JsV
             info!("WS: message event, recieved blob: {:?}", blob);
 
         } else if let Ok(txt) = ev.data().dyn_into::<js_sys::JsString>() {
-            // TEXT
-            // TEXT
-            // TEXT
             let rust_string = String::from(txt);
             // put the below line in an asycn
             let rtc_conn_clone= rtc_conn.clone();
@@ -84,23 +93,53 @@ pub async fn open_web_socket(rtc_conn:RtcPeerConnection) -> Result<WebSocket,JsV
     ws.set_onmessage(Some(onmessage_callback.as_ref().unchecked_ref()));
     onmessage_callback.forget();
 
+    let window = web_sys::window().expect("No window Found, We've got bigger problems here");
+    let document:Document = window.document().expect("Couldnt Get Document");
+    let ws_conn_lbl = "ws_conn_lbl";
+    let ws_conn_lbl_err = "ws_conn_lbl_err";
+        
     //  ON ERROR
+    let document_clone:Document = document.clone();
     let onerror_callback = Closure::wrap(Box::new(move |e: ErrorEvent| {
         error!("WS: onerror_callback error event: {:?}", e);
+
+        document_clone
+            .get_element_by_id(ws_conn_lbl_err)
+            .expect(&format!("Should have {} on the page",ws_conn_lbl_err))
+            .dyn_ref::<HtmlLabelElement>()
+            .expect("#Button should be a be an `HtmlLabelElement`")
+            .set_text_content(Some(&format!("{}","Could not make Websocket Connection, Is the Signalling Server running ? ")));
+            
     }) as Box<dyn FnMut(ErrorEvent)>);
     ws.set_onerror(Some(onerror_callback.as_ref().unchecked_ref()));
     onerror_callback.forget();
 
 
     //  ON OPEN
-    let cloned_ws = ws.clone();
+    let document_clone:Document = document.clone();
     let onopen_callback = Closure::wrap(Box::new(move |_| {
         info!("WS: opened");
+        
+        document_clone
+            .get_element_by_id(ws_conn_lbl)
+            .expect(&format!("Should have {} on the page",ws_conn_lbl))
+            .dyn_ref::<HtmlLabelElement>()
+            .expect("#Button should be a be an `HtmlLabelElement`")
+            .set_text_content(Some(&format!("{}","Websocket Connected !")));
+        
+        document_clone
+            .get_element_by_id(ws_conn_lbl_err)
+            .expect(&format!("Should have {} on the page",ws_conn_lbl_err))
+            .dyn_ref::<HtmlLabelElement>()
+            .expect("#Button should be a be an `HtmlLabelElement`")
+            .set_text_content(Some(&format!("{}","")));
+            
+
+        // Start SDP connection here
+
     }) as Box<dyn FnMut(JsValue)>);
     ws.set_onopen(Some(onopen_callback.as_ref().unchecked_ref()));
     onopen_callback.forget();
-
-    let ws_cloned2 = ws.clone();
 
     // input
     Ok(ws.clone())

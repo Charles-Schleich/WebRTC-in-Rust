@@ -15,6 +15,13 @@ args = ["--port", "${PORT}"]
 
 # ---- BUILD ----
 
+[tasks.watch]
+description = "Watch files and recompile the project on change"
+run_task = [
+    { name = "build" },
+]
+watch = { ignore_pattern="pkg/*", watch = ["."]  }
+
 [tasks.build]
 description = "Build with wasm-pack"
 install_crate = { crate_name = "wasm-pack", binary = "wasm-pack", test_arg = "-V" }

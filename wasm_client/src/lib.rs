@@ -4,23 +4,23 @@ use std::convert::TryInto;
 
 use js_sys::{JSON, Promise, Reflect};
 
+use log::{info,warn,error,debug};
+
 use wasm_bindgen::prelude::*;
+use wasm_bindgen_futures::{JsFuture};
+use wasm_bindgen::JsCast;
 
 use web_sys::{
     MessageEvent, 
     RtcDataChannelEvent, RtcPeerConnection, RtcPeerConnectionIceEvent, RtcSdpType,RtcSessionDescriptionInit,
     RtcDataChannel, RtcIceCandidate, RtcIceCandidateInit,  RtcIceConnectionState,
-    Navigator, 
-    MediaDevices, MediaStream, MediaStreamConstraints,
+    MediaStream, MediaStreamConstraints,
     Document, 
-    ErrorEvent, WebSocket,
-    EventListener, HtmlInputElement, HtmlLabelElement,
+    WebSocket,
+    HtmlInputElement, HtmlLabelElement,
     Element, HtmlVideoElement, HtmlButtonElement,
 };
-use log::{info,warn,error,debug};
  
-use wasm_bindgen_futures::{JsFuture, spawn_local};
-use wasm_bindgen::JsCast;
 
 // local
 mod websockets;
@@ -28,7 +28,6 @@ use websockets::*;
 
 // Functions !
 async fn handle_message_reply(message:String,rtc_conn:RtcPeerConnection,ws:WebSocket) -> Result<(),JsValue> {
-    // debug!("Handling message {}",message);
     let result = match serde_json_wasm::from_str(&message){
         Ok(x)=> x , 
         Err(_) => {
@@ -102,10 +101,8 @@ pub async fn get_video(video_id: String) -> Result<MediaStream,JsValue>{
         Err(e) => return Err(e)
     };
 
-    let document:Document = window.document().expect("Coudlnt Get Document");
-    debug!("after Doc ",);
+    let document:Document = window.document().expect("Couldn't Get Document");
 
-    // let video_element:Element =  document.get_element_by_id(&video).expect(&format!("Could not get video with id {}", video));
     let video_element:Element =  match  document.get_element_by_id(&video_id){
         Some(ms) => ms,
         None=> return Err(JsValue::from_str("No Element video found"))
@@ -148,6 +145,7 @@ pub async fn get_video(video_id: String) -> Result<MediaStream,JsValue>{
 //                                              __/ |                                                    
 //                                             |___/                                                     
 
+#[allow(non_snake_case)]
 pub async fn setup_RTCPeerConnection_ICECallbacks(rtc_conn: RtcPeerConnection, ws:WebSocket ) -> Result<RtcPeerConnection,JsValue> {
 
     // let pc2_clone = pc2.clone();
@@ -182,7 +180,7 @@ pub async fn setup_RTCPeerConnection_ICECallbacks(rtc_conn: RtcPeerConnection, w
 }
 
 pub async fn recieved_new_ice_candidate(candidate:String, rtc_conn: RtcPeerConnection) -> Result<(),JsValue>{
-    debug!("ICECandidate Recieved! {}",candidate);
+    info!("ICECandidate Recieved! {}",candidate);
 
     if candidate.eq("") {
         info!("ICECandidate! is empty doing nothing");
@@ -195,7 +193,7 @@ pub async fn recieved_new_ice_candidate(candidate:String, rtc_conn: RtcPeerConne
                 return Err(JsValue::from_str(&message)); 
             }
         };
-        debug!("ICECandidate Recieved! DEBUG {:?}",icecandidate);
+        // info!("ICECandidate Recieved! DEBUG {:?}",icecandidate);
 
         let mut rtc_ice_init = RtcIceCandidateInit::new(&"");
         rtc_ice_init.candidate(&icecandidate.candidate);
@@ -206,10 +204,10 @@ pub async fn recieved_new_ice_candidate(candidate:String, rtc_conn: RtcPeerConne
             Ok(x)=>{
                 let promise = rtc_conn.clone().add_ice_candidate_with_opt_rtc_ice_candidate(Some(&x));
                 let result = wasm_bindgen_futures::JsFuture::from(promise).await?;
-                debug!("Ice Candidate Add Result {:?}",result);
+                debug!("Ice Candidate add result {:?}",result);
             }
             Err(e) => {
-                debug!("ice candidate creation error, {} |||||| {:?}",candidate,e);
+                debug!("ice candidate creation error, {} | {:?}",candidate,e);
                 return Err(e);
             } 
         };
@@ -224,6 +222,7 @@ pub async fn recieved_new_ice_candidate(candidate:String, rtc_conn: RtcPeerConne
 //   ____) | | |__| | | |        | |  | | | (_| | | | | | | (_| | | | |  __/ | |    \__ \
 //  |_____/  |_____/  |_|        |_|  |_|  \__,_| |_| |_|  \__,_| |_|  \___| |_|    |___/
 
+#[allow(non_snake_case)]
 pub async fn receieve_SDP_answer(pc1: RtcPeerConnection, answer_sdp:String) -> Result<(),JsValue> {
 
     let mut answer_obj = RtcSessionDescriptionInit::new(RtcSdpType::Answer);
@@ -259,6 +258,7 @@ pub async fn receieve_SDP_offer_send_answer(pc2: RtcPeerConnection, offer_sdp:St
     Ok(answer_sdp)
 }
 
+#[allow(non_snake_case)]
 pub async fn create_SDP_offer(pc1:RtcPeerConnection) -> Result<String,JsValue> {
 
     // Create SDP Offer
@@ -291,32 +291,18 @@ pub async fn create_SDP_offer(pc1:RtcPeerConnection) -> Result<String,JsValue> {
 // TODO: Investigate safety of using .unchecked_ref()
 // TODO: remove Unwrap Statements
 
-#[wasm_bindgen]
-pub async fn setup_click_button(rtc_conn: RtcPeerConnection, websocket : WebSocket) -> Result<(),JsValue>{
-    
-    info!("Setup Button Clicks !");
-    // let window = web_sys::window().expect("No window Found");
-    // let document:Document = window.document().expect("Coudlnt Get Document");
-
-    // DEBUG BUTTONS 
-    setup_show_state(rtc_conn.clone());
-    Ok(())
-}
-
 fn setup_show_state(rtc_conn:RtcPeerConnection){
 
     let window = web_sys::window().expect("No window Found");
-    let document:Document = window.document().expect("Coudlnt Get Document");
+    let document:Document = window.document().expect("Couldnt Get Document");
     
     // DEBUG BUTTONS
     let rtc_clone_external = rtc_conn.clone();
     let btn_cb = Closure::wrap( Box::new(move || {
-        // let ws_clone = websocket.clone();
         let rtc_clone = rtc_clone_external.clone();
         show_rtc_state("pc1",rtc_clone);
 
         }) as Box<dyn FnMut()>
-
     );
 
     document
@@ -359,7 +345,7 @@ fn show_rtc_state(name:&str, rtc_conn: RtcPeerConnection){
 pub async fn setup_listenner(pc2: RtcPeerConnection, websocket:WebSocket) -> Result<(),JsValue>{
 
     let window = web_sys::window().expect("No window Found");
-    let document:Document = window.document().expect("Coudlnt Get Document");
+    let document:Document = window.document().expect("Couldnt Get Document");
     
     let ws_clone_external = websocket.clone();
     let pc2_clone_external = pc2.clone();
@@ -373,9 +359,10 @@ pub async fn setup_listenner(pc2: RtcPeerConnection, websocket:WebSocket) -> Res
             ////////////////////////////////////////////////////////////////////////////////////////////////////////////
             // Start Remote Video Callback 
             ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-            let videoelem = "peer_1_video".into();
-            let state_lbl = "ListennerState".into();
-            let ice_state_change = pc1_ice_state_change(pc2_clone.clone(),document_clone.clone(),videoelem,state_lbl);
+            let videoelem = "peer_a_video".into();
+
+            // let state_lbl = "ListennerState".into();
+            let ice_state_change = pc1_ice_state_change(pc2_clone.clone(),document_clone.clone(),videoelem);
             pc2_clone.set_oniceconnectionstatechange(Some(ice_state_change.as_ref().unchecked_ref()));
             ice_state_change.forget();
             info!("pc2 State 1: {:?}",pc2_clone.signaling_state());
@@ -385,11 +372,11 @@ pub async fn setup_listenner(pc2: RtcPeerConnection, websocket:WebSocket) -> Res
             ////////////////////////////////////////////////////////////////////////////////////////////////////////////
             let pc2_clone_media= pc2_clone_external.clone();
             wasm_bindgen_futures::spawn_local( async move {
-                let mediastream= get_video(String::from("peer_2_video")).await.expect_throw("Couldnt Get Media Stream");
-                debug!("peer_2_video result {:?}", mediastream);
+                let mediastream= get_video(String::from("peer_b_video")).await.expect_throw("Couldnt Get Media Stream");
+                debug!("peer_b_video result {:?}", mediastream);
                 pc2_clone_media.add_stream(&mediastream);
                 let tracks = mediastream.get_tracks();
-                debug!("peer_2_video Tracks {:?}", tracks);
+                debug!("peer_b_video Tracks {:?}", tracks);
             });
 
             // NB !!!
@@ -426,7 +413,6 @@ pub async fn setup_listenner(pc2: RtcPeerConnection, websocket:WebSocket) -> Res
             setup_RTCPeerConnection_ICECallbacks(pc2_clone,ws_clone).await;
         });
 
-
         }) as Box<dyn FnMut()>
     );
 
@@ -437,11 +423,6 @@ pub async fn setup_listenner(pc2: RtcPeerConnection, websocket:WebSocket) -> Res
         .expect("#Button should be a be an `HtmlButtonElement`")
         .set_onclick(Some(btn_cb.as_ref().unchecked_ref()));
     btn_cb.forget();
-
-    // ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    // // Start Remote Video Callback 
-    // ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  
 
     Ok(())
 }
@@ -480,15 +461,15 @@ fn pc1_dc_send_message(dc:RtcDataChannel, document:Document) -> Closure<dyn FnMu
     }) as Box<dyn FnMut()>)
 }
 
-fn pc1_ice_state_change(rtc_conn:RtcPeerConnection, document:Document, videoelem: String, state_lbl:String)-> Closure<dyn FnMut()>{
+fn pc1_ice_state_change(rtc_conn:RtcPeerConnection, document:Document, videoelem: String)-> Closure<dyn FnMut()>{
     
     Closure::wrap( Box::new(move || {
-        document
-                .get_element_by_id(&state_lbl)
-                .expect(&format!("should have {} on the page",state_lbl))
-                .dyn_ref::<HtmlLabelElement>()
-                .expect("#Button should be a be an `HtmlLabelElement`")
-                .set_text_content(Some(&format!("{:?}",rtc_conn.ice_connection_state())));
+        // document
+        //         .get_element_by_id(&state_lbl)
+        //         .expect(&format!("Should have {} on the page",state_lbl))
+        //         .dyn_ref::<HtmlLabelElement>()
+        //         .expect("#Button should be a be an `HtmlLabelElement`")
+        //         .set_text_content(Some(&format!("{:?}",rtc_conn.ice_connection_state())));
 
         ///////////////////////////////////////////////////////////////
         /////// Start Video When connected  
@@ -498,7 +479,7 @@ fn pc1_ice_state_change(rtc_conn:RtcPeerConnection, document:Document, videoelem
                 let remote_streams = rtc_conn.get_remote_streams().to_vec();
                 debug!("remote_streams {:?}",remote_streams);
                 // remote_streams
-                if remote_streams.len() ==1 {
+                if remote_streams.len() == 1 {
                     let first_stream = remote_streams[0].clone();
                     debug!("First Stream {:?}",first_stream);
                     let res_media_stream: Result<MediaStream,_> = first_stream.try_into();
@@ -521,7 +502,7 @@ fn pc1_ice_state_change(rtc_conn:RtcPeerConnection, document:Document, videoelem
 pub async fn setup_initiator(pc1: RtcPeerConnection,websocket : WebSocket) -> Result<(),JsValue>{
 
     let window = web_sys::window().expect("No window Found");
-    let document:Document = window.document().expect("Coudlnt Get Document");
+    let document:Document = window.document().expect("Couldnt Get Document");
 
     let ws_clone_external = websocket.clone();
     let pc1_clone_external = pc1.clone();
@@ -553,11 +534,11 @@ pub async fn setup_initiator(pc1: RtcPeerConnection,websocket : WebSocket) -> Re
                 // NB !!!
                 // Need to setup Media Stream BEFORE sending SDP offer
                 // SDP offer Contains information about the Video Streamming technologies available to this and the other broswer
-                let mediastream= get_video(String::from("peer_1_video")).await.expect_throw("Couldnt Get Media Stream");
-                debug!("Peer_1_video result {:?}", mediastream);
+                let mediastream= get_video(String::from("peer_a_video")).await.expect_throw("Couldnt Get Media Stream");
+                debug!("peer_a_video result {:?}", mediastream);
                 pc1_clone.add_stream(&mediastream);
                 let tracks = mediastream.get_tracks();
-                debug!("Peer_1_video Tracks {:?}", tracks);
+                debug!("peer_a_video Tracks {:?}", tracks);
 
                 // Send SDP offer 
                 let sdp_offer = create_SDP_offer(pc1_clone).await.unwrap_throw();
@@ -571,7 +552,13 @@ pub async fn setup_initiator(pc1: RtcPeerConnection,websocket : WebSocket) -> Re
                 };
 
                 warn!("VideoOffer {}",ser_msg);
-                let x = ws_clone.clone().send_with_str(&ser_msg);
+                match ws_clone.clone().send_with_str(&ser_msg){
+                    Ok(_) =>{}
+                    Err(e) =>{
+                        error!("Error Sending Video Offer {:?}",e);
+                    }
+                }
+
             })
         }) as Box<dyn FnMut()>
 
@@ -595,12 +582,11 @@ pub async fn setup_initiator(pc1: RtcPeerConnection,websocket : WebSocket) -> Re
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Start Remote Video Callback 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    let videoelem = "peer_2_video".into();
-    let state_lbl = "InitiatorState".into();
-    let ice_state_change = pc1_ice_state_change(pc1.clone(),document.clone(),videoelem,state_lbl);
+    let videoelem = "peer_b_video".into();
+    // let state_lbl = "InitiatorState".into();
+    let ice_state_change = pc1_ice_state_change(pc1.clone(),document.clone(),videoelem);
     pc1.set_oniceconnectionstatechange(Some(ice_state_change.as_ref().unchecked_ref()));
     ice_state_change.forget();
-
 
     Ok(())
 }

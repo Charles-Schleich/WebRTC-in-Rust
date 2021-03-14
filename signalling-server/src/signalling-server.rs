@@ -2,11 +2,6 @@
 extern crate log;
 extern crate simplelog;
 
-use serde::{Deserialize, Serialize};
-use std::fs;
-use std::io::prelude::*;
-use std::{collections::hash_map, fmt::Error, fs::File, process};
-
 use log::{warn, SetLoggerError};
 use simplelog::{CombinedLogger, LevelFilter, TermLogger, TerminalMode, WriteLogger};
 
@@ -26,20 +21,18 @@ use futures::{
 use async_std::net::{TcpListener, TcpStream};
 use async_std::task;
 use async_tungstenite::tungstenite::protocol::Message;
+use std::net::UdpSocket;
 
-use rand::distributions::Alphanumeric;
-use rand::{thread_rng, Rng};
 
 // Type Alias
 type Tx = UnboundedSender<Message>;
 type PeerMap = Arc<Mutex<HashMap<SocketAddr, Tx>>>;
 
 // Constants
-const PORT: &str = "3000";
-const LOG_FILE: &str = "signalling_server_prototype.log";
+const PORT: &str = "2794";
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Setup Logging
+
+// Functions 
 fn setup_logging() -> Result<(), SetLoggerError> {
     CombinedLogger::init(vec![TermLogger::new(
         LevelFilter::Debug,
@@ -49,7 +42,6 @@ fn setup_logging() -> Result<(), SetLoggerError> {
 }
 
 // Get Server IP
-use std::net::UdpSocket;
 pub fn get_local_ip() -> Option<String> {
     let socket = match UdpSocket::bind("0.0.0.0:0") {
         Ok(s) => s,
@@ -124,9 +116,11 @@ async fn handle_connection(peer_map: PeerMap, raw_stream: TcpStream, addr: Socke
     peer_map.lock().unwrap().remove(&addr);
 }
 
+
 async fn run() -> Result<(), IoError> {
     let mut addr = get_local_ip().expect("Couldn't get IP");
-    addr.push_str(":2794");
+    addr = format!("{}:{}",addr,PORT);
+
     let peer_map = PeerMap::new(Mutex::new(HashMap::new()));
 
     // Create the event loop and TCP listener we'll accept connections on.
@@ -134,7 +128,7 @@ async fn run() -> Result<(), IoError> {
 
     let listener = try_socket.expect("Failed to bind");
 
-    info!("Listening on: {}", addr);
+    info!("Signalling Server Listening on: {}", addr);
 
     // Let's spawn the handling of each connection in a separate task.
     while let Ok((stream, addr)) = listener.accept().await {
@@ -142,6 +136,7 @@ async fn run() -> Result<(), IoError> {
     }
     Ok(())
 }
+
 
 fn main() -> Result<(), IoError> {
     // Setup Basic Logging

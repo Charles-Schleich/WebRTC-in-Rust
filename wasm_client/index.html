@@ -11,8 +11,8 @@
     <div id="container">
         <h1><a title="WebRTC in RUST !" style="color: white;">WebRTC in Rust</a></h1>
 
-        <h3><a title="Peer 1 Video" style="color: white;">Peer 1 Video</a></h3>
-        <video id="peer_1_video" width="320" height="240" autoplay muted></video>
+        <h3><a title="Peer A Video" style="color: white;">Peer A Video</a></h3>
+        <video id="peer_a_video" width="320" height="240" autoplay muted></video>
         <br>
         <button id="StartInitiator" style="height:50px">Start Initiator</button>
         <!-- <label id="InitiatorState">State</label> -->
@@ -23,13 +23,14 @@
 
         <hr>
         <button id="print RTC State" style="height:50px">Print RTC State</button>
-        <!-- <label id="errorMsg" style="color: red;">e</label> -->
+        <label id="ws_conn_lbl" style="color: rgb(29, 161, 69);"></label> 
+        <label id="ws_conn_lbl_err" style="color: red;"></label>
+
         <hr>
-        <h3><a title="Peer 2 Video" style="color: white;">Peer 2 Video</a></h3>
-        <video id="peer_2_video" width="320" height="240" autoplay playsinline></video>
+        <h3><a title="Peer B Video" style="color: white;">Peer B Video</a></h3>
+        <video id="peer_b_video" width="320" height="240" autoplay playsinline></video>
         <br>
         <button id="StartListenner" style="height:50px">Start Listenner</button>
-        <!-- <label id="ListennerState">State</label> -->
         <br>
         <hr>
 

@@ -10,9 +10,6 @@ command = "cargo"
 args = ["run"]
 
 
-# [tasks.serve]
-
-
 # ---- BUILD ----
 
 [tasks.build]
