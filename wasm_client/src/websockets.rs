@@ -80,11 +80,9 @@ pub async fn open_web_socket(rtc_conn:RtcPeerConnection) -> Result<WebSocket,JsV
                 let result= handle_message_reply(rust_string, rtc_conn_clone.clone(), cloned_ws_clone.clone()).await;
                 match result {
                     Err(x) => error!("{:?}",x),
-                    _ => info!("Handle Signalling message done")
+                    _ => {debug!("Handle Signalling message done")}
                 }
             });
-
-            
         } else {
             info!("message event, received Unknown: {:?}", ev.data());
         }
