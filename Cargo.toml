@@ -3,4 +3,5 @@
 members = [
     "wasm_client",
     "signalling-server",
+    "shared-protocol",
 ]

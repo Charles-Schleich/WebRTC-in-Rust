@@ -797,6 +797,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "shared-protocol"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "signalling-server"
 version = "0.1.0"
 dependencies = [
@@ -807,6 +814,7 @@ dependencies = [
  "rand",
  "serde",
  "serde_json",
+ "shared-protocol",
  "simplelog",
 ]
 
@@ -1097,6 +1105,7 @@ dependencies = [
  "log",
  "serde",
  "serde-json-wasm",
+ "shared-protocol",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "wasm-bindgen-test",

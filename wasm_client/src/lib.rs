@@ -1,9 +1,8 @@
 #[allow(non_snake_case)]
 
-
 mod utils;
 
-use std::convert::TryInto;
+use std::{convert::TryInto, ops::Deref};
 
 use js_sys::{JSON, Promise, Reflect};
 
@@ -24,12 +23,24 @@ use web_sys::{
     Element, HtmlVideoElement, HtmlButtonElement,
 };
 
+use std::rc::Rc;
+use std::cell::{RefCell,Cell, RefMut};
+
 // local
 mod websockets;
 use websockets::*;
 
+mod ice;
+use ice::*;
+
+mod sdp;
+use sdp::*;
+
+use shared_protocol::*;
+
 // Functions !
-async fn handle_message_reply(message:String,rtc_conn:RtcPeerConnection,ws:WebSocket) -> Result<(),JsValue> {
+async fn handle_message_reply(message:String,rtc_conn:RtcPeerConnection,ws:WebSocket,rc_state: Rc<RefCell<AppState>>) -> Result<(),JsValue> {
+    
     let result = match serde_json_wasm::from_str(&message){
         Ok(x)=> x , 
         Err(_) => {
@@ -37,12 +48,15 @@ async fn handle_message_reply(message:String,rtc_conn:RtcPeerConnection,ws:WebSo
             return Ok(()); 
         }
     };
-
+    
+    // let session_id = "12345";
     match result {
-        SignallingMessage::VideoOffer(offer)=>{
+        SignalEnum::VideoOffer(offer,session_id)=>{
             warn!("VideoOffer Recieved ");
             let sdp_answer = receieve_SDP_offer_send_answer(rtc_conn.clone(),offer).await?;
-            let signal = SignallingMessage::VideoAnswer(sdp_answer);
+
+
+            let signal = SignalEnum::VideoAnswer(sdp_answer,session_id);
             let response : String  = match serde_json_wasm::to_string(&signal){
                 Ok(x) => x,
                 Err(e) => {
@@ -52,21 +66,43 @@ async fn handle_message_reply(message:String,rtc_conn:RtcPeerConnection,ws:WebSo
             };
 
             match ws.send_with_str(&response) {
-                Ok(_) => info!("Video Offer SignallingMessage sent"),
-                Err(err) => error!("Error sending Video Offer SignallingMessage: {:?}", err),
+                Ok(_) => info!("Video Offer SignalEnum sent"),
+                Err(err) => error!("Error sending Video Offer SignalEnum: {:?}", err),
             }
         },
-        SignallingMessage::VideoAnswer(answer)=>{
+        SignalEnum::VideoAnswer(answer,session_id)=>{
             info!("Video Answer Recieved! {}",answer);
             let res = receieve_SDP_answer(rtc_conn.clone(), answer).await?;
         },
-        SignallingMessage::IceCandidate(candidate) =>{
+        SignalEnum::IceCandidate(candidate,session_id) =>{
             let x = recieved_new_ice_candidate(candidate,rtc_conn.clone()).await?;
         },
-        SignallingMessage::ICEError(err) =>{
+        SignalEnum::SessionReady(session_id) => {
+            info!("SessionReady Recieved ! {}",session_id);
+            let mut state = rc_state.borrow_mut();
+            state.set_session_id(session_id);
+        }
+        SignalEnum::SessionJoinSuccess(session_id) => {
+            info!("Session_id {}",session_id);
+        }
+        SignalEnum::SessionJoinError(e) => {
+            error!("SessionJoinError! {}",e);
+        }
+/////////////////////////////////////////////////////
+        SignalEnum::SessionNew => {
+            error!("Frontend should not receiev Session New");
+        }
+        SignalEnum::SessionJoin(session_id) => {
+            info!("{}",session_id)
+        }
+        SignalEnum::ICEError(err,session_id) =>{
             error!("ICEError! {}",err);
         }
-
+        SignalEnum::NewUser(user_id) => {
+            info!("New User Received ! {}",user_id);
+            let mut state = rc_state.borrow_mut();
+            state.set_session_id(user_id);
+        }
     };
     Ok(())
 }
@@ -138,152 +174,6 @@ pub async fn get_video(video_id: String) -> Result<MediaStream,JsValue>{
 }
 
 
-//  _____    _____   ______     _   _                          _     _           _     _                 
-// |_   _|  / ____| |  ____|   | \ | |                        | |   (_)         | |   (_)                
-//   | |   | |      | |__      |  \| |   ___    __ _    ___   | |_   _    __ _  | |_   _    ___    _ __  
-//   | |   | |      |  __|     | . ` |  / _ \  / _` |  / _ \  | __| | |  / _` | | __| | |  / _ \  | '_ \ 
-//  _| |_  | |____  | |____    | |\  | |  __/ | (_| | | (_) | | |_  | | | (_| | | |_  | | | (_) | | | | |
-// |_____|  \_____| |______|   |_| \_|  \___|  \__, |  \___/   \__| |_|  \__,_|  \__| |_|  \___/  |_| |_|
-//                                              __/ |                                                    
-//                                             |___/                                                     
-
-// As soon as This peer has an ICE Candidate then send it over the websocket connection
-#[allow(non_snake_case)]
-pub async fn setup_RTCPeerConnection_ICECallbacks(rtc_conn: RtcPeerConnection, ws:WebSocket ) -> Result<RtcPeerConnection,JsValue> {
-
-    let onicecandidate_callback1 = 
-        Closure::wrap(
-        Box::new(move |ev:RtcPeerConnectionIceEvent| match ev.candidate() {
-                Some(candidate) => {
-                    let json_obj_candidate = candidate.to_json();
-                    let res = JSON::stringify(&json_obj_candidate).unwrap_throw();
-
-                    let js_ob = String::from(res.clone());
-                    let signal = SignallingMessage::IceCandidate(js_ob);
-                    let ice_candidate : String  = serde_json_wasm::to_string(&signal).unwrap();
-                    
-                    info!("Sending IceCandidate to Other peer {:?}",res);
-                    match ws.send_with_str(&ice_candidate) {
-                        Ok(_) => 
-                            info!("IceCandidate sent {}",ice_candidate),
-                        Err(err) => 
-                            error!("error sending IceCandidate SignallingMessage: {:?}", err),
-                    }
-            }
-            None => {
-                info!("No ICE candidate found");
-            }
-        }) as Box<dyn FnMut(RtcPeerConnectionIceEvent)>,
-    );
-    rtc_conn.set_onicecandidate(Some(onicecandidate_callback1.as_ref().unchecked_ref()));
-    onicecandidate_callback1.forget();
-    Ok(rtc_conn)
-}
-
-pub async fn recieved_new_ice_candidate(candidate:String, rtc_conn: RtcPeerConnection) -> Result<(),JsValue>{
-    warn!("ICECandidate Recieved! {}",candidate);
-
-    if candidate.eq("") {
-        info!("ICECandidate! is empty doing nothing");
-    } else{
-
-        let icecandidate:IceCandidateSend = match serde_json_wasm::from_str(&candidate){
-            Ok(x)=> x , 
-            Err(e) => {
-                let message  = format!("Could not deserialize Ice Candidate {} ",candidate);
-                return Err(JsValue::from_str(&message)); 
-            }
-        };
-
-        let mut rtc_ice_init = RtcIceCandidateInit::new(&"");
-        rtc_ice_init.candidate(&icecandidate.candidate);
-        rtc_ice_init.sdp_m_line_index(Some(icecandidate.sdpMLineIndex));
-        rtc_ice_init.sdp_mid(Some(&icecandidate.sdpMid));
-
-        match RtcIceCandidate::new(&rtc_ice_init){
-            Ok(x)=>{
-                let promise = rtc_conn.clone().add_ice_candidate_with_opt_rtc_ice_candidate(Some(&x));
-                let result = wasm_bindgen_futures::JsFuture::from(promise).await?;
-                info!("Added other peer's Ice Candidate !");
-            }
-            Err(e) => {
-                info!("Ice Candidate Addition error, {} | {:?}",candidate,e);
-                return Err(e);
-            } 
-        };
-    }
-    Ok(())
-}
-
-//    _____   _____    _____      _    _                       _   _                     
-//   / ____| |  __ \  |  __ \    | |  | |                     | | | |                    
-//  | (___   | |  | | | |__) |   | |__| |   __ _   _ __     __| | | |   ___   _ __   ___ 
-//   \___ \  | |  | | |  ___/    |  __  |  / _` | | '_ \   / _` | | |  / _ \ | '__| / __|
-//   ____) | | |__| | | |        | |  | | | (_| | | | | | | (_| | | | |  __/ | |    \__ \
-//  |_____/  |_____/  |_|        |_|  |_|  \__,_| |_| |_|  \__,_| |_|  \___| |_|    |___/
-
-#[allow(non_snake_case)]
-pub async fn receieve_SDP_answer(peer_A: RtcPeerConnection, answer_sdp:String) -> Result<(),JsValue> {
-    warn!("SDP: Receive Answer {:?}", answer_sdp);
-    
-    // Setting Remote Description
-    let mut answer_obj = RtcSessionDescriptionInit::new(RtcSdpType::Answer);
-    answer_obj.sdp(&answer_sdp);
-    let srd_promise = peer_A.set_remote_description(&answer_obj);
-    JsFuture::from(srd_promise).await?;
-    Ok(())
-}
-
-#[allow(non_snake_case)]
-pub async fn receieve_SDP_offer_send_answer(peer_B: RtcPeerConnection, offer_sdp:String) -> Result<String,JsValue> {
-    warn!("SDP: Video Offer Recieve! {:?}", offer_sdp);
-
-    // Set Remote Description    
-    let mut offer_obj =  RtcSessionDescriptionInit::new(RtcSdpType::Offer);
-    offer_obj.sdp(&offer_sdp);
-    let srd_promise = peer_B.set_remote_description(&offer_obj);
-    JsFuture::from(srd_promise).await?;
-
-    // Create SDP Answer
-    let answer = JsFuture::from(peer_B.create_answer()).await?;
-    let answer_sdp = Reflect::get(&answer,&JsValue::from_str("sdp"))?
-        .as_string()
-        .unwrap();
-
-    let mut answer_obj = RtcSessionDescriptionInit::new(RtcSdpType::Answer);
-    answer_obj.sdp(&answer_sdp);
-
-    let sld_promise = peer_B.set_local_description(&answer_obj);
-    JsFuture::from(sld_promise).await?;
-
-    info!("SDP: Sending Video Answer {:?}", answer_sdp);
-    Ok(answer_sdp)
-}
-
-#[allow(non_snake_case)]
-pub async fn create_SDP_offer(peer_A:RtcPeerConnection) -> Result<String,JsValue> {
-
-    // Create SDP Offer
-    let offer = JsFuture::from(peer_A.create_offer()).await?;
-    let offer_sdp = Reflect::get(&offer, &JsValue::from_str("sdp"))?
-        .as_string()
-        .unwrap();
-
-    // Set SDP Type -> Offer
-    let mut offer_obj = RtcSessionDescriptionInit::new(RtcSdpType::Offer);
-    offer_obj.sdp(&offer_sdp);
-
-    // Set SDP Type -> Offer
-    let sld_promise = peer_A.set_local_description(&offer_obj);
-    JsFuture::from(sld_promise).await?;
-
-    // Send Offer from Peer A -> Peer B Via WebSocket
-    info!("SDP: Sending Offer {:?}", offer_sdp);
-
-    Ok(offer_sdp)
-}
-
-
 //  ____    _    _   _______   _______    ____    _   _              _____   ______   _______   _    _   _____  
 // |  _ \  | |  | | |__   __| |__   __|  / __ \  | \ | |            / ____| |  ____| |__   __| | |  | | |  __ \ 
 // | |_) | | |  | |    | |       | |    | |  | | |  \| |           | (___   | |__       | |    | |  | | | |__) |
@@ -294,7 +184,7 @@ pub async fn create_SDP_offer(peer_A:RtcPeerConnection) -> Result<String,JsValue
 // TODO: Investigate safety of using .unchecked_ref()
 // TODO: remove unwrap Statements
 
-fn setup_show_state(rtc_conn:RtcPeerConnection){
+fn setup_show_state(rtc_conn:RtcPeerConnection, state:Rc<RefCell<AppState>>){
 
     let window = web_sys::window().expect("No window Found");
     let document:Document = window.document().expect("Couldnt Get Document");
@@ -303,8 +193,7 @@ fn setup_show_state(rtc_conn:RtcPeerConnection){
     let rtc_clone_external = rtc_conn.clone();
     let btn_cb = Closure::wrap( Box::new(move || {
         let rtc_clone = rtc_clone_external.clone();
-        show_rtc_state(rtc_clone);
-        
+        show_rtc_state(rtc_clone, state.clone());
         }) as Box<dyn FnMut()>
     );
 
@@ -315,7 +204,7 @@ fn setup_show_state(rtc_conn:RtcPeerConnection){
     btn_cb.forget();
 }
 
-fn show_rtc_state(rtc_conn: RtcPeerConnection){
+fn show_rtc_state(rtc_conn: RtcPeerConnection, state:Rc<RefCell<AppState>>){
 
     debug!("===========================");
     debug!("Signalling State : {:?}", rtc_conn.signaling_state());
@@ -326,6 +215,13 @@ fn show_rtc_state(rtc_conn: RtcPeerConnection){
     debug!("get_senders : {:?}", rtc_conn.get_senders());
     debug!("get_receivers : {:?}", rtc_conn.get_receivers());
     debug!("===========================");
+
+    let mut state = state.borrow_mut();
+
+    debug!("===========================");
+    debug!(" User ID : {:?}", state.get_user_id());
+    debug!(" Session ID : {:?}", state.get_session_id());
+    
 
 }
 
@@ -346,7 +242,7 @@ fn show_rtc_state(rtc_conn: RtcPeerConnection){
 // | |____  | | \__ \ | |_  |  __/ | | | | | | | | |  __/ | |   
 // |______| |_| |___/  \__|  \___| |_| |_| |_| |_|  \___| |_|   
 
-pub async fn setup_listenner(pc2: RtcPeerConnection, websocket:WebSocket) -> Result<(),JsValue>{
+pub async fn setup_listenner(pc2: RtcPeerConnection, websocket:WebSocket, rc_state: Rc<RefCell<AppState>>) -> Result<(),JsValue>{
 
     let window = web_sys::window().expect("No window Found");
     let document:Document = window.document().expect("Couldnt Get Document");
@@ -451,19 +347,21 @@ fn peer_A_dc_on_message(dc:RtcDataChannel) -> Closure<dyn FnMut(MessageEvent)>{
 }
 
 
-pub async fn setup_initiator(peer_A: RtcPeerConnection,websocket : WebSocket) -> Result<(),JsValue>{
+pub async fn setup_initiator(peer_A: RtcPeerConnection,websocket : WebSocket, rc_state: Rc<RefCell<AppState>>) -> Result<(),JsValue>{
 
     let window = web_sys::window().expect("No window Found");
     let document:Document = window.document().expect("Couldnt Get Document");
 
     let ws_clone_external = websocket.clone();
     let peer_A_clone_external = peer_A.clone();
+    let rc_state_clone_ext = rc_state.clone();
 
     /*
     * Create DataChannel on peer_A to negotiate
     * Message will be shown here after connection established
     *
     */
+
     info!("peer_A State 1: {:?}",peer_A.signaling_state());
     let dc1 = peer_A.clone().create_data_channel("my-data-channel");
     info!("dc1 created: label {:?}", dc1.label());
@@ -476,6 +374,8 @@ pub async fn setup_initiator(peer_A: RtcPeerConnection,websocket : WebSocket) ->
     let btn_cb = Closure::wrap( Box::new(move || {
             let ws_clone = ws_clone_external.clone();
             let peer_A_clone= peer_A_clone_external.clone();
+            let rc_state_clone = rc_state_clone_ext.clone();
+
             wasm_bindgen_futures::spawn_local( async move {
                 // Setup ICE callbacks
                 let res = setup_RTCPeerConnection_ICECallbacks(peer_A_clone.clone(),ws_clone.clone()).await;
@@ -493,8 +393,14 @@ pub async fn setup_initiator(peer_A: RtcPeerConnection,websocket : WebSocket) ->
                 // debug!("peer_a_video Tracks {:?}", tracks);
 
                 // Send SDP offer 
+                // let mut state = rc_state_clone.borrow_mut();
+                // let opt_session_ID= state.get_session_id();
+                // match opt_session_ID
+
+                let session_id = String::from("12345");
+
                 let sdp_offer = create_SDP_offer(peer_A_clone).await.unwrap_throw();
-                let msg =  SignallingMessage::VideoOffer(sdp_offer.into());
+                let msg =  SignalEnum::VideoOffer(sdp_offer.into(),session_id);
                 let ser_msg : String  = match serde_json_wasm::to_string(&msg){
                     Ok(x) => x,
                     Err(e) => {
@@ -580,9 +486,6 @@ fn rtc_ice_state_change(rtc_conn:RtcPeerConnection, document:Document, videoelem
         }
     }) as Box<dyn FnMut()>)
 }
-                                                                                                 
-                                                                                                                             
-
 
 
 //  __  __           _         
@@ -597,11 +500,55 @@ fn rtc_ice_state_change(rtc_conn:RtcPeerConnection, document:Document, videoelem
 pub async fn start(){
     wasm_logger::init(wasm_logger::Config::new(log::Level::Debug));
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    let mut state = AppState { counter: 0, session_id:None, user_id:None };
+    let rc_state: Rc<RefCell<AppState>> = Rc::new(RefCell::new(state));
+    
     let rtc_conn = RtcPeerConnection::new().unwrap_throw();
-    setup_show_state(rtc_conn.clone());
+    setup_show_state(rtc_conn.clone(), rc_state.clone());
 
-    let websocket =  open_web_socket(rtc_conn.clone()).await.unwrap_throw();
-    setup_listenner(rtc_conn.clone(),websocket.clone() ).await.unwrap_throw();
-    setup_initiator(rtc_conn.clone(),websocket.clone()).await.unwrap_throw();
+    let websocket =  open_web_socket(rtc_conn.clone(), rc_state.clone()).await.unwrap_throw();
+    // setup_listenner(rtc_conn.clone(), websocket.clone() , rc_state.clone()).await.unwrap_throw();
+    // info!("Setup Listenner");
+    // setup_initiator(rtc_conn.clone(), websocket.clone() , rc_state.clone()).await.unwrap_throw();
+    // info!("Setup Initiator");
+
+    // main2(rc_state.clone());
+    // info!("{:?}",rc_state);
+
+    // main3(rc_state.clone());
+    // info!("{:?}",rc_state);
+}
+
+#[derive(Debug)]
+pub struct AppState {
+    counter: i32,
+    session_id:Option<String>,
+    user_id:Option<String>
+}
+
+impl AppState {
+    fn increment(&mut self) {
+        self.counter = self.counter + 1;
+    }
+
+    fn decrement(&mut self) {
+        self.counter = self.counter - 1;
+    }
+  
+    fn set_session_id(&mut self, s_id: String) {
+        self.session_id= Some(s_id)
+    }
+
+    fn get_session_id(&mut self) -> Option<String>{
+        self.session_id.clone()
+    }
+
+    fn set_user_id(&mut self, s_id: String) {
+        self.user_id= Some(s_id)
+    }
+
+    fn get_user_id(&mut self) -> Option<String>{
+        self.user_id.clone()
+    }
 
 }

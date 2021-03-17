@@ -21,16 +21,16 @@ wasm-bindgen = { version = "0.2.63", features = ["serde-serialize"] }
 wasm-logger = "0.2.0"
 wasm-bindgen-futures = "0.4.20"
 
-# tungstenite = "0.12.0"
-# websocket = "0.24.0"
-# [dependencies.websocket]
-# git = "https://github.com/websockets-rs/rust-websocket.git"
-
 # The `console_error_panic_hook` crate provides better debugging of panics by
 # logging them with `console.error`. This is great for development, but requires
 # all the `std::fmt` and `std::panicking` infrastructure, so isn't great for
 # code size when deploying.
 console_error_panic_hook = { version = "0.1.6", optional = true }
+
+
+# From Workspace
+shared-protocol = {path = "../shared-protocol"}
+
 
 [dependencies.web-sys]
 version = "0.3.47"
