@@ -21,6 +21,8 @@ use std::cell::{RefCell,Cell, RefMut};
 
 use shared_protocol::*;
 
+use crate::AppState;
+
 #[derive(Debug,Serialize, Deserialize)]
 pub struct IceCandidateSend {
     pub candidate: String,
@@ -40,8 +42,7 @@ pub struct IceCandidateSend {
 
 // As soon as This peer has an ICE Candidate then send it over the websocket connection
 #[allow(non_snake_case)]
-pub async fn setup_RTCPeerConnection_ICECallbacks(rtc_conn: RtcPeerConnection, ws:WebSocket ) -> Result<RtcPeerConnection,JsValue> {
-    
+pub async fn setup_RTCPeerConnection_ICECallbacks(rtc_conn: RtcPeerConnection, ws:WebSocket, rc_state: Rc<RefCell<AppState>> ) -> Result<RtcPeerConnection,JsValue> {    
 
     let onicecandidate_callback1 = 
         Closure::wrap(
@@ -51,8 +52,19 @@ pub async fn setup_RTCPeerConnection_ICECallbacks(rtc_conn: RtcPeerConnection, w
                     let res = JSON::stringify(&json_obj_candidate).unwrap_throw();
 
                     let js_ob = String::from(res.clone());
-                    let session_id= String::from("12345");
 
+                    let mut state = rc_state.borrow_mut();
+                    let session_id = match state.get_session_id(){
+                        Some(sid) => sid,
+                        None => {
+                            error!("No Session ID has been set yet");
+                            return ();
+                        }
+                    };
+
+                    // state.set_session_id(session_id.clone());
+                    // let session_id= String::from("12345");
+                    
                     let signal = SignalEnum::IceCandidate(js_ob, session_id);
                     let ice_candidate : String  = serde_json_wasm::to_string(&signal).unwrap();
                     

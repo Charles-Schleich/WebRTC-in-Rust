@@ -33,7 +33,7 @@ use shared_protocol::*;
 
 // Type Alias
 type Tx = UnboundedSender<Message>;
-type PeerMap = Arc<Mutex<HashMap<SocketAddr, Tx>>>;
+type PeerMap  = Arc<Mutex<HashMap<SocketAddr, Tx>>>;
 type UserList = Arc<Mutex<HashMap<UserID, SocketAddr>>>;
 
 // Change to make this faster
@@ -44,16 +44,11 @@ type SessionList = Arc<Mutex<HashMap<SessionID, SessionMembers>>>;
 // Constants
 const LOG_FILE: &str ="signalling_server_prototype.log";
 
-// I think this is going to have to become a full signalling server implementation 
-// see https://developer.mozilla.org/en-US/docs/Web/API/WebRTC_API/Signaling_and_video_calling
 
-// Session Members  
-// This type regards only A live videocall session and its setup this is
-// Many of these can be created and destroyed throughout the lifetime of a Consultation
 #[derive(Debug,Clone)]
 struct SessionMembers {
-    doctor_id  : UserID,
-    patient_id : UserID
+    host  : UserID,
+    guest : UserID
 }
 
 
@@ -148,7 +143,7 @@ fn handle_message( peer_map: PeerMap
                     return Err(e_msg);
                 },
                 Some(session_members) => {
-                    let doc_id = session_members.doctor_id.clone();
+                    let doc_id = session_members.host.clone();
                     let sig_msg = SignalEnum::VideoOffer(offer,session_id.clone());
                     let message = match serde_json::to_string(&sig_msg){
                         Ok(msg) => msg,
@@ -172,7 +167,7 @@ fn handle_message( peer_map: PeerMap
                     return Err(e_msg);
                 },
                 Some(session_members) => {
-                    let patient_id = session_members.patient_id.clone();
+                    let guest = session_members.guest.clone();
                     let sig_msg = SignalEnum::VideoAnswer(answer,session_id.clone());
                     let message = match serde_json::to_string(&sig_msg){
                         Ok(msg) => msg,
@@ -181,7 +176,7 @@ fn handle_message( peer_map: PeerMap
                             return Err(e_msg);
                         },
                     };
-                    (message, Destination::OtherPeer(patient_id))
+                    (message, Destination::OtherPeer(guest))
                 }
             }
         },
@@ -196,11 +191,11 @@ fn handle_message( peer_map: PeerMap
                     return Err(e_msg);
                 },
                 Some(session_members) => {
-                    let patient_id = session_members.patient_id.clone();
-                    let doctor_id = session_members.doctor_id.clone();
+                    let guest = session_members.guest.clone();
+                    let host = session_members.host.clone();
                     let destination_peer;
-                    if      user_id == patient_id { destination_peer = doctor_id;  }
-                    else if user_id == doctor_id  { destination_peer = patient_id; }
+                    if      user_id == guest { destination_peer = host;  }
+                    else if user_id == host  { destination_peer = guest; }
                     else {
                         let user_list_lock = user_list.lock().unwrap();
                         let socket_of_misalligned_user = user_list_lock.get(&user_id);
@@ -228,7 +223,7 @@ fn handle_message( peer_map: PeerMap
             unimplemented!("IceError Handling")
         },
         SignalEnum::SessionNew=>{
-            let session_id = generate_id(20);
+            let session_id = generate_id(5);
             let sig_msg = SignalEnum::SessionReady(session_id.clone());
             let message = match serde_json::to_string(&sig_msg){
                 Ok(msg) => msg,
@@ -238,8 +233,8 @@ fn handle_message( peer_map: PeerMap
                 },
             };
             let session = SessionMembers {
-                doctor_id : user_id, 
-                patient_id:"".to_string()
+                host : user_id, 
+                guest:"".to_string()
             };
             let insert_result = session_list.lock().unwrap().insert(session_id.clone(), session.clone());
             if insert_result.is_some(){
@@ -272,7 +267,7 @@ fn handle_message( peer_map: PeerMap
                     debug!("Session Does Exist!!!!!");
 
                     //  Session Exists Send back ready to start signalling !
-                    session_members.patient_id = user_id.clone();
+                    session_members.guest = user_id.clone();
                     debug!("Pre insert_result {}",user_id );
 
                     let sig_msg = SignalEnum::SessionJoinSuccess(session_id.clone());

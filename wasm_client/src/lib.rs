@@ -19,7 +19,7 @@ use web_sys::{
     MediaStream, MediaStreamConstraints,
     Document, 
     WebSocket,
-    HtmlLabelElement,
+    HtmlLabelElement,HtmlInputElement,
     Element, HtmlVideoElement, HtmlButtonElement,
 };
 
@@ -82,10 +82,13 @@ async fn handle_message_reply(message:String,rtc_conn:RtcPeerConnection,ws:WebSo
             set_session_label(session_id);
         }
         SignalEnum::SessionJoinSuccess(session_id) => {
-            info!("Session_id {}",session_id);
+            info!("SessionJoinSuccess {}",session_id);
+            // Initiate the videocall
+            send_video_offer(rtc_conn.clone(),ws.clone(), session_id).await;
         }
         SignalEnum::SessionJoinError(e) => {
             error!("SessionJoinError! {}",e);
+            set_session_connection_status();
         }
         SignalEnum::SessionJoin(session_id) => {
             info!("{}",session_id)
@@ -93,7 +96,7 @@ async fn handle_message_reply(message:String,rtc_conn:RtcPeerConnection,ws:WebSo
         SignalEnum::NewUser(user_id) => {
             info!("New User Received ! {}",user_id);
             let mut state = rc_state.borrow_mut();
-            state.set_session_id(user_id);
+            state.set_user_id(user_id);
         }
 /////////////////////////////////////////////////////
         SignalEnum::ICEError(err,session_id) =>{
@@ -247,70 +250,72 @@ pub async fn setup_listenner(pc2: RtcPeerConnection, websocket:WebSocket, rc_sta
     
     let ws_clone_external = websocket.clone();
     let pc2_clone_external = pc2.clone();
-
     let document_clone_external = document.clone();
+    let rc_state_clone_external= rc_state.clone();
 
     let btn_cb = Closure::wrap( Box::new(move || {
-            let ws_clone = ws_clone_external.clone();
-            let pc2_clone= pc2_clone_external.clone();
-            let document_clone = document_clone_external.clone();
+        let ws_clone = ws_clone_external.clone();
+        let pc2_clone= pc2_clone_external.clone();
+        let document_clone = document_clone_external.clone();
+        let rc_state_clone_interal= rc_state_clone_external.clone();
 
-            ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-            // Start Remote Video Callback 
-            ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-            let videoelem = "peer_a_video".into();
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // Start Remote Video Callback 
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        let videoelem = "peer_a_video".into();
 
-            // let state_lbl = "ListennerState".into();
-            let ice_state_change = rtc_ice_state_change(pc2_clone.clone(),document_clone.clone(),videoelem);
-            pc2_clone.set_oniceconnectionstatechange(Some(ice_state_change.as_ref().unchecked_ref()));
-            ice_state_change.forget();
-            info!("pc2 State 1: {:?}",pc2_clone.signaling_state());
+        let ice_state_change = rtc_ice_state_change(pc2_clone.clone(),document_clone.clone(),videoelem);
+        pc2_clone.set_oniceconnectionstatechange(Some(ice_state_change.as_ref().unchecked_ref()));
+        ice_state_change.forget();
 
-            ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-            // Start Local Video Callback 
-            ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-            let pc2_clone_media= pc2_clone_external.clone();
-            wasm_bindgen_futures::spawn_local( async move {
-                let mediastream= get_video(String::from("peer_b_video")).await.expect_throw("Couldnt Get Media Stream");
-                // debug!("peer_b_video result {:?}", mediastream);
-                pc2_clone_media.add_stream(&mediastream);
-                let tracks = mediastream.get_tracks();
-                // debug!("peer_b_video Tracks {:?}", tracks);
-            });
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // Start Local Video Callback 
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        let pc2_clone_media= pc2_clone_external.clone();
+        wasm_bindgen_futures::spawn_local( async move {
+            let mediastream= get_video(String::from("peer_b_video")).await.expect_throw("Couldnt Get Media Stream");
+            // debug!("peer_b_video result {:?}", mediastream);
+            pc2_clone_media.add_stream(&mediastream);
+            let tracks = mediastream.get_tracks();
+            // debug!("peer_b_video Tracks {:?}", tracks);
+        });
 
-            // NB !!!
-            // Need to setup Media Stream BEFORE sending SDP offer
-            // SDP offer Contains information about the Video Streamming technologies available to this and the other broswer
-            /*
-            * If negotiation has done, this closure will be called
-            *
-            */
-            let ondatachannel_callback =
-                Closure::wrap(Box::new(move | ev: RtcDataChannelEvent| {
-                    let dc2 = ev.channel();
-                    info!("pc2.ondatachannel! : {}", dc2.label());
-                    let onmessage_callback = 
-                        Closure::wrap(
-                            Box::new(move |ev: MessageEvent| match ev.data().as_string(){
-                                Some(message) => warn!("{:?}", message),
-                                None => {}
-                            }) as Box<dyn FnMut(MessageEvent)>,
-                        );
-            dc2.set_onmessage(Some(onmessage_callback.as_ref().unchecked_ref()));
-            onmessage_callback.forget();
-
-            dc2.send_with_str("Ping from pc2.dc!").unwrap();
+        // NB !!!
+        // Need to setup Media Stream BEFORE sending SDP offer
+        // SDP offer Contains information about the Video Streamming technologies available to this and the other broswer
+        /*
+        * If negotiation has done, this closure will be called
+        *
+        */
+        let ondatachannel_callback =
+            Closure::wrap(Box::new(move | ev: RtcDataChannelEvent| {
+                let dc2 = ev.channel();
+                info!("pc2.ondatachannel! : {}", dc2.label());
+                let onmessage_callback = 
+                    Closure::wrap(
+                        Box::new(move |ev: MessageEvent| match ev.data().as_string(){
+                            Some(message) => warn!("{:?}", message),
+                            None => {}
+                        }) as Box<dyn FnMut(MessageEvent)>,
+                    );
+                dc2.set_onmessage(Some(onmessage_callback.as_ref().unchecked_ref()));
+                onmessage_callback.forget();
+                dc2.send_with_str("Ping from pc2.dc!").unwrap();
 
         }) as Box<dyn FnMut(RtcDataChannelEvent)>);
-        
+    
         pc2_clone.set_ondatachannel(Some(ondatachannel_callback.as_ref().unchecked_ref()));
         ondatachannel_callback.forget();
 
         let pc2_clone= pc2_clone_external.clone();
+        let ws_clone1= ws_clone.clone();
+        let rc_state_clone= rc_state_clone_interal.clone();
         wasm_bindgen_futures::spawn_local( async move {
             // Setup ICE callbacks
-            let x= setup_RTCPeerConnection_ICECallbacks(pc2_clone,ws_clone).await;
+            let x= setup_RTCPeerConnection_ICECallbacks(pc2_clone,ws_clone1,rc_state_clone).await;
         });
+        
+        let x= host_session(ws_clone);
 
         }) as Box<dyn FnMut()>
     );
@@ -326,6 +331,28 @@ pub async fn setup_listenner(pc2: RtcPeerConnection, websocket:WebSocket, rc_sta
     Ok(())
 }
 
+
+
+fn host_session(ws: WebSocket){
+    
+    info!("Sending SessionNew");
+    let msg =  SignalEnum::SessionNew;
+    let ser_msg : String  = match serde_json_wasm::to_string(&msg){
+        Ok(x) => x,
+        Err(e) => {
+            error!("Could not Seralize SessionNew {}",e);
+            return ;
+        } 
+    };
+
+    match ws.clone().send_with_str(&ser_msg){
+        Ok(_) =>{}
+        Err(e) =>{
+            error!("Error Sending SessionNew {:?}",e);
+        }
+    }
+
+}
 
 
 //  _____           _   _     _           _     _                
@@ -360,7 +387,6 @@ pub async fn setup_initiator(peer_A: RtcPeerConnection,websocket : WebSocket, rc
     /*
     * Create DataChannel on peer_A to negotiate
     * Message will be shown here after connection established
-    *
     */
 
     info!("peer_A State 1: {:?}",peer_A.signaling_state());
@@ -379,17 +405,20 @@ pub async fn setup_initiator(peer_A: RtcPeerConnection,websocket : WebSocket, rc
 
             wasm_bindgen_futures::spawn_local( async move {
                 // Setup ICE callbacks
-                let res = setup_RTCPeerConnection_ICECallbacks(peer_A_clone.clone(),ws_clone.clone()).await;
+                let res = setup_RTCPeerConnection_ICECallbacks(peer_A_clone.clone(),ws_clone.clone(),rc_state_clone.clone()).await;
                 if res.is_err(){
                     error!("Error Setting up RTCPeerConnection ICE Callbacks {:?}",res.unwrap_err())
                 }
+                //
+
+                try_connect_to_sesison(ws_clone.clone());
 
                 // NB !!!
                 // Need to setup Media Stream BEFORE sending SDP offer
                 // SDP offer Contains information about the Video Streamming technologies available to this and the other broswer
-                let mediastream= get_video(String::from("peer_a_video")).await.expect_throw("Couldnt Get Media Stream");
+                // let mediastream= get_video(String::from("peer_a_video")).await.expect_throw("Couldnt Get Media Stream");
                 // debug!("peer_a_video result {:?}", mediastream);
-                peer_A_clone.add_stream(&mediastream);
+                // peer_A_clone.add_stream(&mediastream);
                 // let tracks = mediastream.get_tracks();
                 // debug!("peer_a_video Tracks {:?}", tracks);
 
@@ -398,25 +427,25 @@ pub async fn setup_initiator(peer_A: RtcPeerConnection,websocket : WebSocket, rc
                 // let opt_session_ID= state.get_session_id();
                 // match opt_session_ID
 
-                let session_id = String::from("12345");
+                // let session_id = String::from("12345");
 
-                let sdp_offer = create_SDP_offer(peer_A_clone).await.unwrap_throw();
-                let msg =  SignalEnum::VideoOffer(sdp_offer.into(),session_id);
-                let ser_msg : String  = match serde_json_wasm::to_string(&msg){
-                    Ok(x) => x,
-                    Err(e) => {
-                        error!("Could not Seralize Video Offer {}",e);
-                        return ;
-                    } 
-                };
+                // let sdp_offer = create_SDP_offer(peer_A_clone).await.unwrap_throw();
+                // let msg =  SignalEnum::VideoOffer(sdp_offer.into(),session_id);
+                // let ser_msg : String  = match serde_json_wasm::to_string(&msg){
+                //     Ok(x) => x,
+                //     Err(e) => {
+                //         error!("Could not Seralize Video Offer {}",e);
+                //         return ;
+                //     } 
+                // };
 
-                info!("SDP VideoOffer {}",ser_msg);
-                match ws_clone.clone().send_with_str(&ser_msg){
-                    Ok(_) =>{}
-                    Err(e) =>{
-                        error!("Error Sending Video Offer {:?}",e);
-                    }
-                }
+                // info!("SDP VideoOffer {}",ser_msg);
+                // match ws_clone.clone().send_with_str(&ser_msg){
+                //     Ok(_) =>{}
+                //     Err(e) =>{
+                //         error!("Error Sending Video Offer {:?}",e);
+                //     }
+                // }
 
             })
         }) as Box<dyn FnMut()>
@@ -437,6 +466,19 @@ pub async fn setup_initiator(peer_A: RtcPeerConnection,websocket : WebSocket, rc
     peer_A.set_oniceconnectionstatechange(Some(ice_state_change.as_ref().unchecked_ref()));
     ice_state_change.forget();
 
+
+    // ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    let btn_cb = Closure::wrap( Box::new(move || {
+            get_session_id_from_input();
+        }) as Box<dyn FnMut()>
+    );
+    document
+        .get_element_by_id("connect_to_session").expect("should have connect_to_session on the page")
+        .dyn_ref::<HtmlButtonElement>().expect("#Button should be a be an `HtmlButtonElement`")
+        .set_onclick(Some(btn_cb.as_ref().unchecked_ref()));
+    btn_cb.forget();
+    
     Ok(())
 }
 
@@ -503,9 +545,92 @@ fn set_session_label(session_id: String) {
         .dyn_ref::<HtmlLabelElement>()
         .expect("#Button should be a be an `HtmlLabelElement`")
         .set_text_content(Some(&format!("{}",session_id)));
-
 }
 
+
+// inner_text(&self)
+
+fn get_session_id_from_input() -> String {
+
+    let window = web_sys::window().expect("No window Found, We've got bigger problems here");
+    let document:Document = window.document().expect("Couldnt Get Document");
+    let sid_input = "sid_input";
+
+    let sid_input = document
+        .get_element_by_id(sid_input)
+        .expect(&format!("Should have {} on the page",sid_input))
+        .dyn_ref::<HtmlInputElement>()
+        .expect("#HtmlInputElement should be a be an `HtmlInputElement`")
+        .value();
+    info!("sid_inputs {}", sid_input);
+    sid_input
+}
+
+
+fn set_session_connection_status() {
+
+    let window = web_sys::window().expect("No window Found, We've got bigger problems here");
+    let document:Document = window.document().expect("Couldnt Get Document");
+    let ws_conn_lbl = "session_connection_status";
+
+    document
+        .get_element_by_id(ws_conn_lbl)
+        .expect(&format!("Should have {} on the page",ws_conn_lbl))
+        .dyn_ref::<HtmlLabelElement>()
+        .expect("#Button should be a be an `HtmlLabelElement`")
+        .set_text_content(Some(&format!("Could not connect")));
+}
+
+
+fn try_connect_to_sesison(ws: WebSocket){
+    let session_id = get_session_id_from_input();
+    let msg =  SignalEnum::SessionJoin(session_id);
+    let ser_msg : String  = match serde_json_wasm::to_string(&msg){
+        Ok(x) => x,
+        Err(e) => {
+            error!("Could not Seralize SessionJoin {}",e);
+            return ;
+        } 
+    };
+    match ws.clone().send_with_str(&ser_msg){
+        Ok(_) =>{}
+        Err(e) =>{
+            error!("Error Sending SessionJoin {:?}",e);
+        }
+    }
+}
+
+
+
+async fn send_video_offer(rtc_conn:RtcPeerConnection,ws: WebSocket, session_id:String){
+    //  NB !!!
+    // Need to setup Media Stream BEFORE sending SDP offer
+    // SDP offer Contains information about the Video Streamming technologies available to this and the other broswer
+    let mediastream= get_video(String::from("peer_a_video")).await.expect_throw("Couldnt Get Media Stream");
+    debug!("peer_a_video result {:?}", mediastream);
+    rtc_conn.add_stream(&mediastream);
+    let tracks = mediastream.get_tracks();
+    debug!("peer_a_video Tracks {:?}", tracks);
+
+    // Send SDP offer
+    let sdp_offer = create_SDP_offer(rtc_conn).await.unwrap_throw();
+    let msg =  SignalEnum::VideoOffer(sdp_offer.into(),session_id);
+    let ser_msg : String  = match serde_json_wasm::to_string(&msg){
+        Ok(x) => x,
+        Err(e) => {
+            error!("Could not Seralize Video Offer {}",e);
+            return ;
+        } 
+    };
+
+    info!("SDP VideoOffer {}",ser_msg);
+    match ws.clone().send_with_str(&ser_msg){
+        Ok(_) =>{}
+        Err(e) =>{
+            error!("Error Sending Video Offer {:?}",e);
+        }
+    }
+}
 
 
 //  __  __           _         
@@ -532,11 +657,6 @@ pub async fn start(){
     setup_initiator(rtc_conn.clone(), websocket.clone() , rc_state.clone()).await.unwrap_throw();
     info!("Setup Initiator");
 
-    // main2(rc_state.clone());
-    // info!("{:?}",rc_state);
-
-    // main3(rc_state.clone());
-    // info!("{:?}",rc_state);
 }
 
 

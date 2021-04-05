@@ -108,7 +108,7 @@ pub async fn open_web_socket(rtc_conn:RtcPeerConnection, rc_state: Rc<RefCell<Ap
             .set_text_content(Some(&format!("{}","")));
         // Start SDP connection here
         // info!("WS: opened end");
-        request_session(ws_clone);
+        // request_session(ws_clone);
 
     }) as Box<dyn FnMut(JsValue)>);
     ws.set_onopen(Some(onopen_callback.as_ref().unchecked_ref()));
