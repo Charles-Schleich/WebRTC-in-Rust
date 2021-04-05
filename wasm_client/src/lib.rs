@@ -54,8 +54,6 @@ async fn handle_message_reply(message:String,rtc_conn:RtcPeerConnection,ws:WebSo
         SignalEnum::VideoOffer(offer,session_id)=>{
             warn!("VideoOffer Recieved ");
             let sdp_answer = receieve_SDP_offer_send_answer(rtc_conn.clone(),offer).await?;
-
-
             let signal = SignalEnum::VideoAnswer(sdp_answer,session_id);
             let response : String  = match serde_json_wasm::to_string(&signal){
                 Ok(x) => x,
@@ -80,7 +78,8 @@ async fn handle_message_reply(message:String,rtc_conn:RtcPeerConnection,ws:WebSo
         SignalEnum::SessionReady(session_id) => {
             info!("SessionReady Recieved ! {}",session_id);
             let mut state = rc_state.borrow_mut();
-            state.set_session_id(session_id);
+            state.set_session_id(session_id.clone());
+            set_session_label(session_id);
         }
         SignalEnum::SessionJoinSuccess(session_id) => {
             info!("Session_id {}",session_id);
@@ -88,20 +87,20 @@ async fn handle_message_reply(message:String,rtc_conn:RtcPeerConnection,ws:WebSo
         SignalEnum::SessionJoinError(e) => {
             error!("SessionJoinError! {}",e);
         }
-/////////////////////////////////////////////////////
-        SignalEnum::SessionNew => {
-            error!("Frontend should not receiev Session New");
-        }
         SignalEnum::SessionJoin(session_id) => {
             info!("{}",session_id)
-        }
-        SignalEnum::ICEError(err,session_id) =>{
-            error!("ICEError! {}",err);
         }
         SignalEnum::NewUser(user_id) => {
             info!("New User Received ! {}",user_id);
             let mut state = rc_state.borrow_mut();
             state.set_session_id(user_id);
+        }
+/////////////////////////////////////////////////////
+        SignalEnum::ICEError(err,session_id) =>{
+            error!("ICEError! {}",err);
+        }
+        SignalEnum::SessionNew => {
+            error!("Frontend should not receiev Session New");
         }
     };
     Ok(())
@@ -126,13 +125,13 @@ pub async fn get_video(video_id: String) -> Result<MediaStream,JsValue>{
         Err(e) =>  return  Err(e) 
     };
     
-    debug!("media_devices {:?}",media_devices);
-    debug!("media_devices {:?}",navigator.media_devices());
+    // debug!("media_devices {:?}",media_devices);
+    // debug!("media_devices {:?}",navigator.media_devices());
  
     let mut constraints = MediaStreamConstraints::new(); 
     constraints.audio(&JsValue::FALSE);
     constraints.video(&JsValue::TRUE);
-    info!("Constraints {:?}",constraints);
+    // info!("Constraints {:?}",constraints);
 
     let stream_promise: Promise = match media_devices.get_user_media_with_constraints(&constraints){ 
         Ok(s) => s,
@@ -146,7 +145,7 @@ pub async fn get_video(video_id: String) -> Result<MediaStream,JsValue>{
         None=> return Err(JsValue::from_str("No Element video found"))
     };
 
-    info!("video_element {:?}",video_element);
+    // info!("video_element {:?}",video_element);
     
     let media_stream: MediaStream = match wasm_bindgen_futures::JsFuture::from(stream_promise).await {
         Ok(ms) => MediaStream::from(ms),
@@ -166,9 +165,9 @@ pub async fn get_video(video_id: String) -> Result<MediaStream,JsValue>{
         }
     };
 
-    info!("vid_elem {:?}",vid_elem);
+    // info!("vid_elem {:?}",vid_elem);
     let x = vid_elem.set_src_object(Some(&media_stream));
-    info!("media_stream {:?}",media_stream);
+    // info!("media_stream {:?}",media_stream);
 
     Ok(media_stream)
 }
@@ -221,7 +220,6 @@ fn show_rtc_state(rtc_conn: RtcPeerConnection, state:Rc<RefCell<AppState>>){
     debug!("===========================");
     debug!(" User ID : {:?}", state.get_user_id());
     debug!(" Session ID : {:?}", state.get_session_id());
-    
 
 }
 
@@ -251,6 +249,7 @@ pub async fn setup_listenner(pc2: RtcPeerConnection, websocket:WebSocket, rc_sta
     let pc2_clone_external = pc2.clone();
 
     let document_clone_external = document.clone();
+
     let btn_cb = Closure::wrap( Box::new(move || {
             let ws_clone = ws_clone_external.clone();
             let pc2_clone= pc2_clone_external.clone();
@@ -273,10 +272,10 @@ pub async fn setup_listenner(pc2: RtcPeerConnection, websocket:WebSocket, rc_sta
             let pc2_clone_media= pc2_clone_external.clone();
             wasm_bindgen_futures::spawn_local( async move {
                 let mediastream= get_video(String::from("peer_b_video")).await.expect_throw("Couldnt Get Media Stream");
-                debug!("peer_b_video result {:?}", mediastream);
+                // debug!("peer_b_video result {:?}", mediastream);
                 pc2_clone_media.add_stream(&mediastream);
                 let tracks = mediastream.get_tracks();
-                debug!("peer_b_video Tracks {:?}", tracks);
+                // debug!("peer_b_video Tracks {:?}", tracks);
             });
 
             // NB !!!
@@ -326,6 +325,8 @@ pub async fn setup_listenner(pc2: RtcPeerConnection, websocket:WebSocket, rc_sta
 
     Ok(())
 }
+
+
 
 //  _____           _   _     _           _     _                
 // |_   _|         (_) | |   (_)         | |   (_)               
@@ -488,14 +489,32 @@ fn rtc_ice_state_change(rtc_conn:RtcPeerConnection, document:Document, videoelem
 }
 
 
+
+
+fn set_session_label(session_id: String) {
+
+    let window = web_sys::window().expect("No window Found, We've got bigger problems here");
+    let document:Document = window.document().expect("Couldnt Get Document");
+    let ws_conn_lbl = "sessionid_lbl";
+
+    document
+        .get_element_by_id(ws_conn_lbl)
+        .expect(&format!("Should have {} on the page",ws_conn_lbl))
+        .dyn_ref::<HtmlLabelElement>()
+        .expect("#Button should be a be an `HtmlLabelElement`")
+        .set_text_content(Some(&format!("{}",session_id)));
+
+}
+
+
+
 //  __  __           _         
 // |  \/  |         (_)        
 // | \  / |   __ _   _   _ __  
 // | |\/| |  / _` | | | | '_ \ 
 // | |  | | | (_| | | | | | | |
 // |_|  |_|  \__,_| |_| |_| |_|
-                            
-                            
+
 #[wasm_bindgen(start)]
 pub async fn start(){
     wasm_logger::init(wasm_logger::Config::new(log::Level::Debug));
@@ -507,10 +526,11 @@ pub async fn start(){
     setup_show_state(rtc_conn.clone(), rc_state.clone());
 
     let websocket =  open_web_socket(rtc_conn.clone(), rc_state.clone()).await.unwrap_throw();
-    // setup_listenner(rtc_conn.clone(), websocket.clone() , rc_state.clone()).await.unwrap_throw();
-    // info!("Setup Listenner");
-    // setup_initiator(rtc_conn.clone(), websocket.clone() , rc_state.clone()).await.unwrap_throw();
-    // info!("Setup Initiator");
+
+    setup_listenner(rtc_conn.clone(), websocket.clone() , rc_state.clone()).await.unwrap_throw();
+    info!("Setup Listenner");
+    setup_initiator(rtc_conn.clone(), websocket.clone() , rc_state.clone()).await.unwrap_throw();
+    info!("Setup Initiator");
 
     // main2(rc_state.clone());
     // info!("{:?}",rc_state);
@@ -518,6 +538,8 @@ pub async fn start(){
     // main3(rc_state.clone());
     // info!("{:?}",rc_state);
 }
+
+
 
 #[derive(Debug)]
 pub struct AppState {

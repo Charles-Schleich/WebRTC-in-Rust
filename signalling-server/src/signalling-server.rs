@@ -228,7 +228,6 @@ fn handle_message( peer_map: PeerMap
             unimplemented!("IceError Handling")
         },
         SignalEnum::SessionNew=>{
-            // Only Doctors can create Sessions
             let session_id = generate_id(20);
             let sig_msg = SignalEnum::SessionReady(session_id.clone());
             let message = match serde_json::to_string(&sig_msg){

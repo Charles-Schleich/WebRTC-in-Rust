@@ -12,17 +12,6 @@ use log::{info,warn,error,debug};
 use wasm_bindgen::JsCast;
 use serde::{Serialize, Deserialize};
 
-// use web_sys::{
-//     MessageEvent, 
-//     RtcDataChannelEvent, RtcPeerConnection, RtcPeerConnectionIceEvent, RtcSdpType,RtcSessionDescriptionInit,
-//     RtcDataChannel, RtcIceCandidate, RtcIceCandidateInit,  RtcIceConnectionState,
-//     MediaStream, MediaStreamConstraints,
-//     Document, 
-//     WebSocket,
-//     HtmlInputElement, HtmlLabelElement,
-//     Element, HtmlVideoElement, HtmlButtonElement,
-// };
- 
 // local
 use super::*;
 
@@ -37,15 +26,6 @@ use shared_protocol::*;
 //     \/  \/      \___| |_.__/    |_____/   \___/   \___| |_|\_\  \___|  \__|
 
 const WS_IP_PORT : &str = "ws://192.168.178.28:2794";
-
-// #[derive(Serialize, Deserialize)]
-// pub enum SignallingMessage {
-//     VideoOffer(String),
-//     VideoAnswer(String),
-//     IceCandidate(String),
-//     ICEError(String),
-// }
-
 
 // #[wasm_bindgen]
 pub async fn open_web_socket(rtc_conn:RtcPeerConnection, rc_state: Rc<RefCell<AppState>>) -> Result<WebSocket,JsValue> {
@@ -106,11 +86,12 @@ pub async fn open_web_socket(rtc_conn:RtcPeerConnection, rc_state: Rc<RefCell<Ap
     ws.set_onerror(Some(onerror_callback.as_ref().unchecked_ref()));
     onerror_callback.forget();
 
-
+    let ws_clone_ext = ws.clone();
     //  ON OPEN
     let document_clone:Document = document.clone();
     let onopen_callback = Closure::wrap(Box::new(move |_| {
-        info!("WS: opened");
+        // info!("WS: opened");
+        let ws_clone = ws_clone_ext.clone();
         
         document_clone
             .get_element_by_id(ws_conn_lbl)
@@ -126,7 +107,8 @@ pub async fn open_web_socket(rtc_conn:RtcPeerConnection, rc_state: Rc<RefCell<Ap
             .expect("#Button should be a be an `HtmlLabelElement`")
             .set_text_content(Some(&format!("{}","")));
         // Start SDP connection here
-        info!("WS: opened end");
+        // info!("WS: opened end");
+        request_session(ws_clone);
 
     }) as Box<dyn FnMut(JsValue)>);
     ws.set_onopen(Some(onopen_callback.as_ref().unchecked_ref()));
@@ -134,4 +116,27 @@ pub async fn open_web_socket(rtc_conn:RtcPeerConnection, rc_state: Rc<RefCell<Ap
 
     // input
     Ok(ws.clone())
+}
+
+
+
+
+fn request_session(ws:WebSocket){
+    info!("Sending SessionNew");
+
+    let msg =  SignalEnum::SessionNew;
+    let ser_msg : String  = match serde_json_wasm::to_string(&msg){
+        Ok(x) => x,
+        Err(e) => {
+            error!("Could not Seralize SessionNew {}",e);
+            return ;
+        } 
+    };
+
+    match ws.clone().send_with_str(&ser_msg){
+        Ok(_) =>{}
+        Err(e) =>{
+            error!("Error Sending SessionNew {:?}",e);
+        }
+    }
 }
