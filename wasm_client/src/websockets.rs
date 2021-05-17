@@ -25,7 +25,7 @@ use shared_protocol::*;
 //    \  /\  /    |  __/ | |_) |    ____) | | (_) | | (__  |   <  |  __/ | |_ 
 //     \/  \/      \___| |_.__/    |_____/   \___/   \___| |_|\_\  \___|  \__|
 
-const WS_IP_PORT : &str = "ws://192.168.178.28:2794";
+const WS_IP_PORT : &str = "ws://192.168.178.76:2794";
 
 // #[wasm_bindgen]
 pub async fn open_web_socket(rtc_conn:RtcPeerConnection, rc_state: Rc<RefCell<AppState>>) -> Result<WebSocket,JsValue> {
@@ -80,7 +80,8 @@ pub async fn open_web_socket(rtc_conn:RtcPeerConnection, rc_state: Rc<RefCell<Ap
             .expect(&format!("Should have {} on the page",ws_conn_lbl_err))
             .dyn_ref::<HtmlLabelElement>()
             .expect("#Button should be a be an `HtmlLabelElement`")
-            .set_text_content(Some(&format!("{}","Could not make Websocket Connection, Is the Signalling Server running ? ")));
+            .set_text_content(Some(&format!("{} {} ?","Could not make Websocket Connection, Is the Signalling Server running on: ", WS_IP_PORT)));
+
             
     }) as Box<dyn FnMut(ErrorEvent)>);
     ws.set_onerror(Some(onerror_callback.as_ref().unchecked_ref()));

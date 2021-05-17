@@ -51,7 +51,6 @@ struct SessionMembers {
     guest : UserID
 }
 
-
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Setup Logging
 fn setup_logging()-> Result<(),SetLoggerError>{
@@ -79,8 +78,6 @@ pub fn get_local_ip() -> Option<String> {
         Err(_) => return None,
     };
 }
-
-
 
 fn generate_id(length:u8) -> String {
 
@@ -253,7 +250,7 @@ fn handle_message( peer_map: PeerMap
                 None=>{
                     debug!("Session Doesn NOT Exist");
                     //  Session Does not Exists Send back error !
-                    let sig_msg = SignalEnum::SessionJoinError(session_id.clone());
+                    let sig_msg = SignalEnum::SessionJoinError("Session Does Not Exist".into());
                     let message = match serde_json::to_string(&sig_msg){
                         Ok(msg) => msg,
                         Err(e) => {
@@ -284,7 +281,14 @@ fn handle_message( peer_map: PeerMap
         },
         // SignalEnum::SessionJoinSuccess(String)=>{ unimplemented!() },
         // SignalEnum::SessionJoinError(String)=>{ unimplemented!() },
-        // SignalEnum::SessionReady(String)=>{ unimplemented!()  },
+        SignalEnum::Debug=>{ 
+            debug!("=====================================");
+            debug!("====== Signalling Server State ======");
+            debug!("    User List {:?}", user_list);
+            debug!("    Session List {:?}",session_list);
+            debug!("====================================");
+            return Ok(());
+        },
         _ => {
             error!("Should not recieve state, {:?}",result);
             return Err(format!("Should not recieve state, {:?}",result));
@@ -443,23 +447,10 @@ async fn handle_connection(peer_map: PeerMap, user_list:UserList, session_list:S
                 info!("Handle Message Ok : result {:?}",result);
             }
 
-            debug!("peer_map {:?}",peer_map);
-            debug!("user_list {:?}",user_list);
-            debug!("session_list {:?}",session_list);
+            // debug!("peer_map {:?}",peer_map);
+            // debug!("user_list {:?}",user_list);
+            // debug!("session_list {:?}",session_list);
             
-
-            // let peers = peer_map.lock().unwrap();
-            // // We want to broadcast the message to everyone except ourselves.
-            // let broadcast_recipients = peers
-            //     .iter()
-            //     .filter(
-            //         |(peer_addr, _)| peer_addr != &&addr)
-            //     .map(|(_, ws_sink)| ws_sink);
-
-            // for recp in broadcast_recipients {
-            //     recp.unbounded_send(msg.clone()).unwrap();
-            // }
-
             future::ok(())
         });
 
@@ -475,8 +466,18 @@ async fn handle_connection(peer_map: PeerMap, user_list:UserList, session_list:S
     // Remove from User_List
     user_list.lock().unwrap().remove(&user_id);
 
-    // TODO: Close any sessions assoicated with the address or id IF the session is a Doctor.
-    // session
+    // TODO: Close any sessions assoicated with the address IF user hosted the session.  
+    let sess_list: Vec<String> = 
+    { 
+        session_list.lock().unwrap().iter().filter_map(|(sid,members)| {
+            if members.host == user_id{ Some(sid.clone())}
+            else {None}
+        }).collect()
+    };
+
+    for s in sess_list{
+        session_list.lock().unwrap().remove(&s);
+    }
 }
 
 async fn run() -> Result<(), IoError> {

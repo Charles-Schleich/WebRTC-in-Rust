@@ -22,4 +22,9 @@ pub enum SignalEnum {
     VideoAnswer(String, SessionID),
     IceCandidate(String, SessionID),
     ICEError(String, SessionID),
+    
+    // 
+    Debug,
 }
+
+// debug_signal_server_state

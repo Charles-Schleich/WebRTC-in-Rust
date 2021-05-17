@@ -83,12 +83,14 @@ async fn handle_message_reply(message:String,rtc_conn:RtcPeerConnection,ws:WebSo
         }
         SignalEnum::SessionJoinSuccess(session_id) => {
             info!("SessionJoinSuccess {}",session_id);
+            set_session_connection_status_error("".into());
             // Initiate the videocall
-            send_video_offer(rtc_conn.clone(),ws.clone(), session_id).await;
+            send_video_offer(rtc_conn.clone(),ws.clone(), session_id.clone()).await;
+            set_session_connection_status(session_id);
         }
         SignalEnum::SessionJoinError(e) => {
             error!("SessionJoinError! {}",e);
-            set_session_connection_status();
+            set_session_connection_status_error(e);
         }
         SignalEnum::SessionJoin(session_id) => {
             info!("{}",session_id)
@@ -98,13 +100,19 @@ async fn handle_message_reply(message:String,rtc_conn:RtcPeerConnection,ws:WebSo
             let mut state = rc_state.borrow_mut();
             state.set_user_id(user_id);
         }
-/////////////////////////////////////////////////////
         SignalEnum::ICEError(err,session_id) =>{
-            error!("ICEError! {}",err);
+            error!("ICEError! {}, {} ",err, session_id);
         }
-        SignalEnum::SessionNew => {
-            error!("Frontend should not receiev Session New");
+/////////////////////////////////////////////////////
+        remaining =>
+        {
+            error!("Frontend should not recieve {:?}",remaining);
         }
+        // SignalEnum::SessionNew => {
+        // }
+        // SignalEnum::Debug => {
+        //     error!("Frontend should not recieve Debug");
+        // }
     };
     Ok(())
 }
@@ -200,11 +208,12 @@ fn setup_show_state(rtc_conn:RtcPeerConnection, state:Rc<RefCell<AppState>>){
     );
 
     document
-        .get_element_by_id("print RTC State").expect("should have print RTC State on the page")
+        .get_element_by_id("debug_client_state").expect("should have debug_client_state on the page")
         .dyn_ref::<HtmlButtonElement>().expect("#Button should be a be an `HtmlButtonElement`")
         .set_onclick(Some(btn_cb.as_ref().unchecked_ref()));
     btn_cb.forget();
 }
+
 
 fn show_rtc_state(rtc_conn: RtcPeerConnection, state:Rc<RefCell<AppState>>){
 
@@ -225,6 +234,37 @@ fn show_rtc_state(rtc_conn: RtcPeerConnection, state:Rc<RefCell<AppState>>){
     debug!(" Session ID : {:?}", state.get_session_id());
 
 }
+
+
+
+
+fn setup_show_signalling_server_state(ws:WebSocket){
+
+    let window = web_sys::window().expect("No window Found");
+    let document:Document = window.document().expect("Couldnt Get Document");
+    
+    // DEBUG BUTTONS
+    let btn_cb = Closure::wrap( Box::new(move || {
+            let msg =  SignalEnum::Debug;
+            let ser_msg : String  = serde_json_wasm::to_string(&msg).expect("Couldnt Serialize SginalEnum::Debug Message");
+
+            match ws.clone().send_with_str(&ser_msg){
+                Ok(_) =>{}
+                Err(e) =>{
+                    error!("Error Sending SessionNew {:?}",e);
+                }
+            }
+        }) as Box<dyn FnMut()>
+    );
+
+    document
+        .get_element_by_id("debug_signal_server_state")
+        .expect("should have debug_signal_server_state on the page")
+        .dyn_ref::<HtmlButtonElement>().expect("#Button should be a be an `HtmlButtonElement`")
+        .set_onclick(Some(btn_cb.as_ref().unchecked_ref()));
+    btn_cb.forget();
+}
+
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -321,8 +361,8 @@ pub async fn setup_listenner(pc2: RtcPeerConnection, websocket:WebSocket, rc_sta
     );
 
     document
-        .get_element_by_id("StartListenner")
-        .expect("should have StartListenner on the page")
+        .get_element_by_id("start_session")
+        .expect("should have start_session on the page")
         .dyn_ref::<HtmlButtonElement>()
         .expect("#Button should be a be an `HtmlButtonElement`")
         .set_onclick(Some(btn_cb.as_ref().unchecked_ref()));
@@ -452,7 +492,7 @@ pub async fn setup_initiator(peer_A: RtcPeerConnection,websocket : WebSocket, rc
 
     );
     document
-        .get_element_by_id("StartInitiator").expect("should have StartInitiator on the page")
+        .get_element_by_id("connect_to_session").expect("should have connect_to_session on the page")
         .dyn_ref::<HtmlButtonElement>().expect("#Button should be a be an `HtmlButtonElement`")
         .set_onclick(Some(btn_cb.as_ref().unchecked_ref()));
     btn_cb.forget();
@@ -469,16 +509,6 @@ pub async fn setup_initiator(peer_A: RtcPeerConnection,websocket : WebSocket, rc
 
     // ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    let btn_cb = Closure::wrap( Box::new(move || {
-            get_session_id_from_input();
-        }) as Box<dyn FnMut()>
-    );
-    document
-        .get_element_by_id("connect_to_session").expect("should have connect_to_session on the page")
-        .dyn_ref::<HtmlButtonElement>().expect("#Button should be a be an `HtmlButtonElement`")
-        .set_onclick(Some(btn_cb.as_ref().unchecked_ref()));
-    btn_cb.forget();
-    
     Ok(())
 }
 
@@ -530,9 +560,6 @@ fn rtc_ice_state_change(rtc_conn:RtcPeerConnection, document:Document, videoelem
     }) as Box<dyn FnMut()>)
 }
 
-
-
-
 fn set_session_label(session_id: String) {
 
     let window = web_sys::window().expect("No window Found, We've got bigger problems here");
@@ -567,8 +594,28 @@ fn get_session_id_from_input() -> String {
 }
 
 
-fn set_session_connection_status() {
+fn set_session_connection_status_error(error :String) {
+    let window = web_sys::window().expect("No window Found, We've got bigger problems here");
+    let document:Document = window.document().expect("Couldnt Get Document");
+    let ws_conn_lbl = "session_connection_status_error";
 
+    let e_string;
+    if error.len()==0{
+        e_string = format!("")
+    } else{
+        e_string = format!("Could not connect: {} ", error)
+    } 
+
+    document
+        .get_element_by_id(ws_conn_lbl)
+        .expect(&format!("Should have {} on the page",ws_conn_lbl))
+        .dyn_ref::<HtmlLabelElement>()
+        .expect("#Button should be a be an `HtmlLabelElement`")
+        .set_text_content(Some(&e_string));
+}
+
+
+fn set_session_connection_status(id :String) {
     let window = web_sys::window().expect("No window Found, We've got bigger problems here");
     let document:Document = window.document().expect("Couldnt Get Document");
     let ws_conn_lbl = "session_connection_status";
@@ -578,8 +625,9 @@ fn set_session_connection_status() {
         .expect(&format!("Should have {} on the page",ws_conn_lbl))
         .dyn_ref::<HtmlLabelElement>()
         .expect("#Button should be a be an `HtmlLabelElement`")
-        .set_text_content(Some(&format!("Could not connect")));
+        .set_text_content(Some(&id));
 }
+
 
 
 fn try_connect_to_sesison(ws: WebSocket){
@@ -649,8 +697,8 @@ pub async fn start(){
     
     let rtc_conn = RtcPeerConnection::new().unwrap_throw();
     setup_show_state(rtc_conn.clone(), rc_state.clone());
-
     let websocket =  open_web_socket(rtc_conn.clone(), rc_state.clone()).await.unwrap_throw();
+    setup_show_signalling_server_state(websocket.clone());
 
     setup_listenner(rtc_conn.clone(), websocket.clone() , rc_state.clone()).await.unwrap_throw();
     info!("Setup Listenner");
