@@ -79,14 +79,16 @@ async fn handle_message_reply(message:String,rtc_conn:RtcPeerConnection,ws:WebSo
             info!("SessionReady Recieved ! {}",session_id);
             let mut state = rc_state.borrow_mut();
             state.set_session_id(session_id.clone());
-            set_session_label(session_id);
+            set_html_label("sessionid_lbl",session_id);
         }
         SignalEnum::SessionJoinSuccess(session_id) => {
             info!("SessionJoinSuccess {}",session_id);
             set_session_connection_status_error("".into());
             // Initiate the videocall
             send_video_offer(rtc_conn.clone(),ws.clone(), session_id.clone()).await;
-            set_session_connection_status(session_id);
+            let full_string = format!("Connected to Session: {}", session_id);
+            set_html_label("session_connection_status",full_string);
+            set_html_label("sessionid_heading","".into());
         }
         SignalEnum::SessionJoinError(e) => {
             error!("SessionJoinError! {}",e);
@@ -560,22 +562,16 @@ fn rtc_ice_state_change(rtc_conn:RtcPeerConnection, document:Document, videoelem
     }) as Box<dyn FnMut()>)
 }
 
-fn set_session_label(session_id: String) {
-
+fn set_html_label(html_label:&str, session_id: String) {
     let window = web_sys::window().expect("No window Found, We've got bigger problems here");
     let document:Document = window.document().expect("Couldnt Get Document");
-    let ws_conn_lbl = "sessionid_lbl";
-
     document
-        .get_element_by_id(ws_conn_lbl)
-        .expect(&format!("Should have {} on the page",ws_conn_lbl))
+        .get_element_by_id(html_label)
+        .expect(&format!("Should have {} on the page",html_label))
         .dyn_ref::<HtmlLabelElement>()
         .expect("#Button should be a be an `HtmlLabelElement`")
         .set_text_content(Some(&format!("{}",session_id)));
 }
-
-
-// inner_text(&self)
 
 fn get_session_id_from_input() -> String {
 
@@ -614,19 +610,6 @@ fn set_session_connection_status_error(error :String) {
         .set_text_content(Some(&e_string));
 }
 
-
-fn set_session_connection_status(id :String) {
-    let window = web_sys::window().expect("No window Found, We've got bigger problems here");
-    let document:Document = window.document().expect("Couldnt Get Document");
-    let ws_conn_lbl = "session_connection_status";
-
-    document
-        .get_element_by_id(ws_conn_lbl)
-        .expect(&format!("Should have {} on the page",ws_conn_lbl))
-        .dyn_ref::<HtmlLabelElement>()
-        .expect("#Button should be a be an `HtmlLabelElement`")
-        .set_text_content(Some(&id));
-}
 
 
 
