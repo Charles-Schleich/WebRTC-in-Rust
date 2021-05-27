@@ -36,19 +36,17 @@ type Tx = UnboundedSender<Message>;
 type PeerMap  = Arc<Mutex<HashMap<SocketAddr, Tx>>>;
 type UserList = Arc<Mutex<HashMap<UserID, SocketAddr>>>;
 
-// Change to make this faster
-// type SessionID   = String;
-type UserID      = String;
+
+// type UserID      = String;
 type SessionList = Arc<Mutex<HashMap<SessionID, SessionMembers>>>;
 
 // Constants
 const LOG_FILE: &str ="signalling_server_prototype.log";
 
-
 #[derive(Debug,Clone)]
 struct SessionMembers {
     host  : UserID,
-    guest : UserID
+    guest : Option<UserID>
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -91,7 +89,7 @@ fn generate_id(length:u8) -> String {
 }
 
 
-type PeerID = String;
+type PeerID = UserID;
 
 #[derive(Debug,Clone)]
 enum Destination {
@@ -135,7 +133,7 @@ fn handle_message( peer_map: PeerMap
 
             match possible_session {
                 None=>{
-                    let e_msg = format!("VideoOffer Session {} Doesn NOT Exist, Groot kak",session_id);
+                    let e_msg = format!("VideoOffer Session {} Does NOT Exist, Groot kak",session_id.inner());
                     error!("VideoOffer Session Doesn NOT Exist, Groot kak");
                     return Err(e_msg);
                 },
@@ -159,12 +157,19 @@ fn handle_message( peer_map: PeerMap
 
             match possible_session {
                 None=>{
-                    let e_msg = format!("VideoAnswer Session {} Doesn NOT Exist, Groot kak",session_id);
+                    let e_msg = format!("VideoAnswer Session {} Doesn NOT Exist, Groot kak",session_id.inner());
                     error!("VideoAnswer Session Doesn NOT Exist, Groot kak");
                     return Err(e_msg);
                 },
                 Some(session_members) => {
-                    let guest = session_members.guest.clone();
+                    let opt_guest = session_members.guest.clone();
+                    let guest = match opt_guest {
+                        Some(guest) =>{ guest }
+                        None => { 
+                            let emsg= String::from("IceCandidate Error: No guest in Session, where are you sending Ice Candidates mate? ");
+                            return Err(emsg) ; 
+                        }
+                    };
                     let sig_msg = SignalEnum::VideoAnswer(answer,session_id.clone());
                     let message = match serde_json::to_string(&sig_msg){
                         Ok(msg) => msg,
@@ -183,12 +188,20 @@ fn handle_message( peer_map: PeerMap
 
             match possible_session {
                 None=>{
-                    let e_msg = format!("IceCandidate Session {} Doesn NOT Exist, Groot kak",session_id);
+                    let e_msg = format!("IceCandidate Session {} Doesn NOT Exist, Groot kak",session_id.inner());
                     error!("IceCandidate Session Doesn NOT Exist, Groot kak");
                     return Err(e_msg);
                 },
                 Some(session_members) => {
-                    let guest = session_members.guest.clone();
+                    let opt_guest = session_members.guest.clone();
+                    let guest = match opt_guest {
+                        Some(guest) =>{ guest }
+                        None => { 
+                            let emsg= String::from("IceCandidate Error: No guest in Session, where are you sending Ice Candidates mate? ");
+                            return Err(emsg) ; 
+                        }
+                    };
+
                     let host = session_members.host.clone();
                     let destination_peer;
                     if      user_id == guest { destination_peer = host;  }
@@ -196,10 +209,10 @@ fn handle_message( peer_map: PeerMap
                     else {
                         let user_list_lock = user_list.lock().unwrap();
                         let socket_of_misalligned_user = user_list_lock.get(&user_id);
-                        error!("UserID connection with {} attempted to send ICE peers to session {} when not assigned to the session", user_id, session_id.clone());
+                        error!("UserID connection with {} attempted to send ICE peers to session {} when not assigned to the session", user_id.clone().inner(), session_id.clone().inner());
                         error!("Socket Address of Illegal user {:?}", socket_of_misalligned_user);
                         error!("Not Forwarding Ice candidate");
-                        let e_msg = format!("User {:?}, attempted to send Ice Candidate on session {:?}, which User is not a part of", user_id, session_id.clone());
+                        let e_msg = format!("User {:?}, attempted to send Ice Candidate on session {:?}, which User is not a part of", user_id.inner(), session_id.clone());
                         return Err(e_msg);
                     }
 
@@ -220,7 +233,7 @@ fn handle_message( peer_map: PeerMap
             unimplemented!("IceError Handling")
         },
         SignalEnum::SessionNew=>{
-            let session_id = generate_id(5);
+            let session_id = SessionID::new(generate_id(5));
             let sig_msg = SignalEnum::SessionReady(session_id.clone());
             let message = match serde_json::to_string(&sig_msg){
                 Ok(msg) => msg,
@@ -231,7 +244,7 @@ fn handle_message( peer_map: PeerMap
             };
             let session = SessionMembers {
                 host : user_id, 
-                guest:"".to_string()
+                guest: None 
             };
             let insert_result = session_list.lock().unwrap().insert(session_id.clone(), session.clone());
             if insert_result.is_some(){
@@ -261,11 +274,10 @@ fn handle_message( peer_map: PeerMap
                     (message, Destination::SourcePeer)
                 },
                 Some(session_members) => {
-                    debug!("Session Does Exist!!!!!");
+                    debug!("Session Exists ! Begin Signalling Flow ... ");
 
                     //  Session Exists Send back ready to start signalling !
-                    session_members.guest = user_id.clone();
-                    debug!("Pre insert_result {}",user_id );
+                    session_members.guest = Some(user_id.clone());
 
                     let sig_msg = SignalEnum::SessionJoinSuccess(session_id.clone());
                     let message = match serde_json::to_string(&sig_msg){
@@ -370,9 +382,9 @@ fn handle_message( peer_map: PeerMap
    Ok(())
 }
 
-fn reply_with_id(tx:UnboundedSender<Message>, id:String)-> Result<(),String>{
+fn reply_with_id(tx:UnboundedSender<Message>, user_id:UserID)-> Result<(),String>{
     
-    let sig_enum = SignalEnum::NewUser(id);
+    let sig_enum = SignalEnum::NewUser(user_id);
 
     let message = match serde_json::to_string(&sig_enum){
             Ok(x)=> x , 
@@ -410,7 +422,7 @@ async fn handle_connection(peer_map: PeerMap, user_list:UserList, session_list:S
     peer_map.lock().unwrap().insert(addr, tx.clone());
 
     // Insert the User_ID to the user_list
-    let user_id= generate_id(10);
+    let user_id= UserID::new(generate_id(10));
 
     {   
         user_list.lock().unwrap().insert(user_id.clone(), addr);
@@ -418,7 +430,7 @@ async fn handle_connection(peer_map: PeerMap, user_list:UserList, session_list:S
     
     // Here we reply with WS Connection ID 
     // TODO better Error handling
-    let res= reply_with_id(tx,user_id.clone());
+    let res= reply_with_id(tx, user_id.clone());
 
     // HERE THE FUN BEGINS  
     let (outgoing, incoming) = ws_stream.split();
@@ -467,7 +479,7 @@ async fn handle_connection(peer_map: PeerMap, user_list:UserList, session_list:S
     user_list.lock().unwrap().remove(&user_id);
 
     // TODO: Close any sessions assoicated with the address IF user hosted the session.  
-    let sess_list: Vec<String> = 
+    let sess_list: Vec<SessionID> = 
     { 
         session_list.lock().unwrap().iter().filter_map(|(sid,members)| {
             if members.host == user_id{ Some(sid.clone())}

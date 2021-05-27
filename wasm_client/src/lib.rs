@@ -76,34 +76,34 @@ async fn handle_message_reply(message:String,rtc_conn:RtcPeerConnection,ws:WebSo
             let x = recieved_new_ice_candidate(candidate,rtc_conn.clone()).await?;
         },
         SignalEnum::SessionReady(session_id) => {
-            info!("SessionReady Recieved ! {}",session_id);
+            info!("SessionReady Recieved ! {:?}",session_id);
             let mut state = rc_state.borrow_mut();
             state.set_session_id(session_id.clone());
-            set_html_label("sessionid_lbl",session_id);
+            set_html_label("sessionid_lbl",session_id.inner());
         }
         SignalEnum::SessionJoinSuccess(session_id) => {
-            info!("SessionJoinSuccess {}",session_id);
+            info!("SessionJoinSuccess {}",session_id.clone().inner());
             set_session_connection_status_error("".into());
             // Initiate the videocall
             send_video_offer(rtc_conn.clone(),ws.clone(), session_id.clone()).await;
-            let full_string = format!("Connected to Session: {}", session_id);
+            let full_string = format!("Connected to Session: {}", session_id.inner());
             set_html_label("session_connection_status",full_string);
             set_html_label("sessionid_heading","".into());
         }
-        SignalEnum::SessionJoinError(e) => {
-            error!("SessionJoinError! {}",e);
-            set_session_connection_status_error(e);
+        SignalEnum::SessionJoinError(sessionid) => {
+            error!("SessionJoinError! {}",sessionid.clone().inner());
+            set_session_connection_status_error(sessionid.inner());
         }
         SignalEnum::SessionJoin(session_id) => {
-            info!("{}",session_id)
+            info!("{}",session_id.inner())
         }
         SignalEnum::NewUser(user_id) => {
-            info!("New User Received ! {}",user_id);
+            info!("New User Received ! {}",user_id.clone().inner());
             let mut state = rc_state.borrow_mut();
             state.set_user_id(user_id);
         }
         SignalEnum::ICEError(err,session_id) =>{
-            error!("ICEError! {}, {} ",err, session_id);
+            error!("ICEError! {}, {} ",err, session_id.inner());
         }
 /////////////////////////////////////////////////////
         remaining =>
@@ -614,7 +614,8 @@ fn set_session_connection_status_error(error :String) {
 
 
 fn try_connect_to_sesison(ws: WebSocket){
-    let session_id = get_session_id_from_input();
+    let session_id_string = get_session_id_from_input();
+    let session_id= SessionID::new(session_id_string);
     let msg =  SignalEnum::SessionJoin(session_id);
     let ser_msg : String  = match serde_json_wasm::to_string(&msg){
         Ok(x) => x,
@@ -633,7 +634,7 @@ fn try_connect_to_sesison(ws: WebSocket){
 
 
 
-async fn send_video_offer(rtc_conn:RtcPeerConnection,ws: WebSocket, session_id:String){
+async fn send_video_offer(rtc_conn:RtcPeerConnection,ws: WebSocket, session_id:SessionID){
     //  NB !!!
     // Need to setup Media Stream BEFORE sending SDP offer
     // SDP offer Contains information about the Video Streamming technologies available to this and the other broswer
@@ -695,8 +696,8 @@ pub async fn start(){
 #[derive(Debug)]
 pub struct AppState {
     counter: i32,
-    session_id:Option<String>,
-    user_id:Option<String>
+    session_id:Option<SessionID>,
+    user_id:Option<UserID>
 }
 
 impl AppState {
@@ -708,19 +709,19 @@ impl AppState {
         self.counter = self.counter - 1;
     }
   
-    fn set_session_id(&mut self, s_id: String) {
+    fn set_session_id(&mut self, s_id: SessionID) {
         self.session_id= Some(s_id)
     }
 
-    fn get_session_id(&mut self) -> Option<String>{
+    fn get_session_id(&mut self) -> Option<SessionID>{
         self.session_id.clone()
     }
 
-    fn set_user_id(&mut self, s_id: String) {
-        self.user_id= Some(s_id)
+    fn set_user_id(&mut self, user_id: UserID) {
+        self.user_id= Some(user_id)
     }
 
-    fn get_user_id(&mut self) -> Option<String>{
+    fn get_user_id(&mut self) -> Option<UserID>{
         self.user_id.clone()
     }
 
