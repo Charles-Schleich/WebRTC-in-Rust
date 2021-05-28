@@ -1,4 +1,4 @@
-# Web RTC in Rust !
+# Web RTC Tutorial in Rust+WASM !
 ![Ferris](Crustacean_over_ip.png)
 
 
