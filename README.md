@@ -24,4 +24,4 @@ Dont forget to set your own ip address for your web-sockets signalling server in
 - Signaling: Signaling is the process of sending control information between two devices to determine the communication protocols, channels, media codecs and formats, and method of data transfer, as well as any required routing information. The most important thing to know about the signaling process for WebRTC: it is not defined in the specification.
 
 
-This is to be read with the following Medium Article
+This is to be read with the following [Medium Article](https://charles-schleich.medium.com/webrtc-video-chat-tutorial-using-rust-wasm-fa340f7aeef9) 
