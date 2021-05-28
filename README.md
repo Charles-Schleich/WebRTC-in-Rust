@@ -5,19 +5,18 @@
 
 
 
-Starter for your WebRTC needs in Rust 🦀🕸
-
+Starter for your WebRTC+WASM in Rust 🦀🕸
 ## Start Right away
-To build project root  
-Terminal 1 🛠 : `cargo make build`  
+To build the wasm, from `/wasm_client/` run  
+Terminal 1 🛠 : `cargo make build` or `cargo make watch` (if you plan on tinkering)    
   
-  
-To Run  
+To run the servers (Can be done from root directory)  
 Terminal 1 🚀 : `cargo make serve`  
-Terminal 2 🔌 : `cargo make servesignal`
+Terminal 2 🔌 : `cargo make servesignal`  
 
+Dont forget to set your own ip address for your web-sockets signalling server inside `/wasm_client/src/websockets.rs`
 
-## Usefull Terminology
+## Useful Terminology
 - ICE  : Interactive Connectivity Establishment
 - SCTP : Stream Control Transmission Protocol (SCTP)
 - SDP  : Session Description Protocol
@@ -27,15 +26,4 @@ Terminal 2 🔌 : `cargo make servesignal`
 - Signaling: Signaling is the process of sending control information between two devices to determine the communication protocols, channels, media codecs and formats, and method of data transfer, as well as any required routing information. The most important thing to know about the signaling process for WebRTC: it is not defined in the specification.
 
 
-## The signaling process:
-There's a sequence of things that have to happen in order to make it possible to begin a WebRTC session:
-1. Each peer creates an RTCPeerConnection object representing their end of the WebRTC session.
-2. Each peer establishes a handler for icecandidate events, which handles sending those candidates to the other peer over the signaling channel.
-3. Each peer establishes a handler for track event, which is received when the remote peer adds a track to the stream. This code should connect the tracks to its consumer, such as a <video> element.
-4. Each peer connects to an agreed-upon signaling server, such as a WebSocket server they both know how to exchange messages with.
-5. The person that starts the call Is waiting 
-
-
-## NB 
-Need to setup Media Stream BEFORE sending SDP offer  
-SDP offer Contains information about the Video Streamming technologies available to this and the other broswer
+This is to be read with the following Medium Article
