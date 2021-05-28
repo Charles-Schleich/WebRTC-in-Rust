@@ -480,8 +480,7 @@ fn rtc_ice_state_change(rtc_conn:RtcPeerConnection, document:Document, videoelem
         ///////////////////////////////////////////////////////////////
         match rtc_conn.ice_connection_state(){
             RtcIceConnectionState::Connected=> {
-                // TODO:  Add Audio track here
-            
+           
                 // let remote_streams = rtc_conn.get_senders().to_vec();
                 let remote_streams = rtc_conn.get_remote_streams().to_vec();
                 debug!("remote_streams {:?}",remote_streams);
