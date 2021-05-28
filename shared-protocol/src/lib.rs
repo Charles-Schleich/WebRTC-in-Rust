@@ -3,9 +3,11 @@ use serde::{Deserialize,Serialize};
 
 pub const SERVER_PORT : &str = "9000";
 
-// pub type SessionID = String;
+// The reason im wrapping the IDs in SessionID and UserID is so that rust can type check for us that we arent accidentally using the wrong ID type in the wrong place.
+
 #[derive(Debug,Serialize, Deserialize,Clone,Eq,PartialEq,Hash)]
 pub struct SessionID(String);
+
 impl SessionID {
     pub fn new(inner: String) -> Self {
         SessionID(inner)
@@ -23,6 +25,7 @@ impl Into<SessionID> for &str{
 
 #[derive(Debug,Serialize, Deserialize,Clone,Eq,PartialEq,Hash)]
 pub struct UserID(String);
+
 impl UserID {
     pub fn new(inner: String) -> Self {
         UserID(inner)
