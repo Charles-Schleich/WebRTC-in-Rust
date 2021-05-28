@@ -1,9 +1,8 @@
-#[allow(non_snake_case)]
-
+#![allow(non_snake_case)]
 
 use js_sys::{JSON};
 
-use log::{info,warn,error,debug};
+use log::{info,warn,error};
 
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
@@ -17,7 +16,7 @@ use web_sys::{
 use serde::{Serialize, Deserialize};
 
 use std::rc::Rc;
-use std::cell::{RefCell,Cell, RefMut};
+use std::cell::{RefCell};
 
 use shared_protocol::*;
 
@@ -111,7 +110,7 @@ pub async fn recieved_new_ice_candidate(candidate:String, rtc_conn: RtcPeerConne
             Ok(x)=>{
                 let promise = rtc_conn.clone().add_ice_candidate_with_opt_rtc_ice_candidate(Some(&x));
                 let result = wasm_bindgen_futures::JsFuture::from(promise).await?;
-                info!("Added other peer's Ice Candidate !");
+                info!("Added other peer's Ice Candidate ! {:?}", result);
             }
             Err(e) => {
                 info!("Ice Candidate Addition error, {} | {:?}",candidate,e);

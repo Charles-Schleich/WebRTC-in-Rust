@@ -18,8 +18,8 @@
         <label id="session_connection_status_error" style="color: rgb(200, 10, 10);"></label>
 
 
-        <h3><a title="Peer A Video" style="color: white; outline-style: solid;">Peer A Video</a></h3>
-        <video id="peer_a_video" width="320" height="240" autoplay muted></video>
+        <h3><a title="Peer A Video" style="color: white; ">Peer A Video</a></h3>
+        <video id="peer_a_video" width="320" height="240" style="color: white; outline-style: solid;"" autoplay muted></video>
         <br>
         <button id="connect_to_session" style="height:50px">Connect to Session</button>
         <input type="text" id="sid_input" name="sid_input"></input>
@@ -30,24 +30,17 @@
         <label id="ws_conn_lbl" style="color: rgb(29, 161, 69);"></label> 
         <br>
         <button id="debug_signal_server_state" style="height:50px">Print Signalling Server State(In Terminal) </button>
-        <!-- <button id="signalling_server_debug_state" style="height:50px">Print Client State</button> -->
         <label id="ws_conn_lbl_err" style="color: red;"></label>
         <br>
 
 
         <hr>
-        <h3><a title="Peer B Video" style="color: white; outline-style: solid;">Peer B Video</a></h3>
-        <video id="peer_b_video" width="320" height="240" autoplay playsinline></video>
+        <h3><a title="Peer B Video" style="color: white; ">Peer B Video</a></h3>
+        <video id="peer_b_video" width="320" height="240" style="color: white; outline-style: solid;"" autoplay muted playsinline></video>
         <br>
         <button id="start_session" style="height:50px">Start Session</button>
-        <br>
-        <hr>
 
-
-
-        <div id="errorMsg"></div>
     </div>
-    <hr>
 
 
     <script type="module">

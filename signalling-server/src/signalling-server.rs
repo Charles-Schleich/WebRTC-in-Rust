@@ -3,7 +3,6 @@
 extern crate simplelog;
 
 use std::fs::File;
-use serde::{Deserialize,Serialize};
 
 use log::{SetLoggerError, warn};
 use simplelog::{CombinedLogger,TermLogger,TerminalMode,LevelFilter,WriteLogger};
@@ -227,7 +226,6 @@ fn handle_message( peer_map: PeerMap
                     (message, Destination::OtherPeer(destination_peer))
                 }
             }
-            // unimplemented!()
         },
         SignalEnum::ICEError(err,session_id) =>{
             unimplemented!("IceError Handling")
@@ -291,8 +289,6 @@ fn handle_message( peer_map: PeerMap
                 }
             }
         },
-        // SignalEnum::SessionJoinSuccess(String)=>{ unimplemented!() },
-        // SignalEnum::SessionJoinError(String)=>{ unimplemented!() },
         SignalEnum::Debug=>{ 
             debug!("=====================================");
             debug!("====== Signalling Server State ======");
@@ -358,27 +354,6 @@ fn handle_message( peer_map: PeerMap
         }, 
     } 
 
-    // Find the Right peer[[]].
-    // let broadcast_recipients = peers
-    //     .iter()stream
-    //     recp.unbounded_send(msg.clone()).unwrap();
-    // }
-
-
-    // Send Reply
-    // let peers = peer_map.lock().unwrap();    
-    // // Find the Right peer[[]].
-    // let broadcast_recipients = peers
-    //     .iter()
-    //     .filter(
-    //         |(peer_addr, _)| peer_addr != &&addr
-    //         )
-    //     .map(|(_, ws_sink)| ws_sink);
-
-    // for recp in broadcast_recipients {
-    //     recp.unbounded_send(msg.clone()).unwrap();
-    // }
-
    Ok(())
 }
 
@@ -395,9 +370,13 @@ fn reply_with_id(tx:UnboundedSender<Message>, user_id:UserID)-> Result<(),String
         };
 
     // Todo better error handling
-    let x= tx.unbounded_send(Message::Text(message));
-
-    info!("{:?}",x);
+    let res= tx.unbounded_send(Message::Text(message));
+    if res.is_err(){
+        error!("{:?}",res.unwrap_err());
+    
+    } else{
+        info!("{:?}",res);
+    }
     Ok(())
 }
 
@@ -459,10 +438,6 @@ async fn handle_connection(peer_map: PeerMap, user_list:UserList, session_list:S
                 info!("Handle Message Ok : result {:?}",result);
             }
 
-            // debug!("peer_map {:?}",peer_map);
-            // debug!("user_list {:?}",user_list);
-            // debug!("session_list {:?}",session_list);
-            
             future::ok(())
         });
 
@@ -508,9 +483,8 @@ async fn run() -> Result<(), IoError> {
 
     info!("Listening on: {}", addr);
 
-    // Let's spawn the handling of each connection in a separate task.
+    // Let's spawn the handling of each connection in a separate Async task.
     while let Ok((stream, addr)) = listener.accept().await {
-        
         task::spawn(handle_connection(peer_map.clone(),user_list.clone(),session_list.clone(), stream, addr));
     }
     Ok(())
