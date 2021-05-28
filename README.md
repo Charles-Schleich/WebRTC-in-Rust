@@ -1,7 +1,5 @@
 # Web RTC in Rust !
-![](https://devopedia.org/images/article/39/4276.1518788244.png)
-
-
+![Ferris](Crustacean_over_ip.png)
 
 
 
