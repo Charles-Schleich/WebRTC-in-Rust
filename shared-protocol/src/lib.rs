@@ -1,11 +1,10 @@
+use serde::{Deserialize, Serialize};
 
-use serde::{Deserialize,Serialize};
-
-pub const SERVER_PORT : &str = "9000";
+pub const SERVER_PORT: &str = "9000";
 
 // The reason im wrapping the IDs in SessionID and UserID is so that rust can type check for us that we arent accidentally using the wrong ID type in the wrong place.
 
-#[derive(Debug,Serialize, Deserialize,Clone,Eq,PartialEq,Hash)]
+#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, Hash)]
 pub struct SessionID(String);
 
 impl SessionID {
@@ -17,13 +16,13 @@ impl SessionID {
     }
 }
 
-impl Into<SessionID> for &str{
+impl Into<SessionID> for &str {
     fn into(self) -> SessionID {
         SessionID::new(self.into())
     }
-} 
+}
 
-#[derive(Debug,Serialize, Deserialize,Clone,Eq,PartialEq,Hash)]
+#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, Hash)]
 pub struct UserID(String);
 
 impl UserID {
@@ -35,7 +34,7 @@ impl UserID {
     }
 }
 
-#[derive(Debug,Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum SignalEnum {
     // Return called by the server as soon as the user connects
     NewUser(UserID),
@@ -52,7 +51,7 @@ pub enum SignalEnum {
     VideoAnswer(String, SessionID),
     IceCandidate(String, SessionID),
     ICEError(String, SessionID),
-    
-    // 
+
+    //
     Debug,
 }
