@@ -18,7 +18,7 @@ use super::*;
 //    \  /\  /    |  __/ | |_) |    ____) | | (_) | | (__  |   <  |  __/ | |_
 //     \/  \/      \___| |_.__/    |_____/   \___/   \___| |_|\_\  \___|  \__|
 
-const WS_IP_PORT: &str = "ws://192.168.178.76:2794";
+const WS_IP_PORT: &str = "ws://192.168.0.150:2794";
 
 // #[wasm_bindgen]
 pub async fn open_web_socket(
