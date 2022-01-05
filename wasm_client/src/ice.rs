@@ -1,31 +1,26 @@
-#![allow(non_snake_case)]
+use std::cell::RefCell;
+use std::rc::Rc;
 
 use js_sys::JSON;
-
 use log::{error, info, warn};
-
-use wasm_bindgen::prelude::*;
-use wasm_bindgen::JsCast;
-
+use serde::{Deserialize, Serialize};
+use wasm_bindgen::closure::Closure;
+use wasm_bindgen::{JsCast, JsValue, UnwrapThrowExt};
 use web_sys::{
     RtcIceCandidate, RtcIceCandidateInit, RtcPeerConnection, RtcPeerConnectionIceEvent, WebSocket,
 };
 
-use serde::{Deserialize, Serialize};
-
-use std::cell::RefCell;
-use std::rc::Rc;
-
-use shared_protocol::*;
+use shared_protocol::SignalEnum;
 
 use crate::AppState;
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct IceCandidateSend {
+#[allow(non_snake_case)]
+pub struct IceCandidate {
     pub candidate: String,
     pub sdpMid: String,
     pub sdpMLineIndex: u16,
-    // pub usernameFragment:String // This seems to be specific to FireFox
+    // pub usernameFragment: String // This seems to be specific to FireFox
 }
 
 //  _____    _____   ______     _   _                          _     _           _     _
@@ -58,7 +53,7 @@ pub async fn setup_RTCPeerConnection_ICECallbacks(
                         Some(sid) => sid,
                         None => {
                             error!("No Session ID has been set yet");
-                            return ;
+                            return;
                         }
                     };
 
@@ -84,16 +79,16 @@ pub async fn setup_RTCPeerConnection_ICECallbacks(
     Ok(rtc_conn)
 }
 
-pub async fn recieved_new_ice_candidate(
+pub async fn received_new_ice_candidate(
     candidate: String,
     rtc_conn: RtcPeerConnection,
 ) -> Result<(), JsValue> {
-    warn!("ICECandidate Recieved! {}", candidate);
+    warn!("ICECandidate Received! {}", candidate);
 
     if candidate.eq("") {
         info!("ICECandidate! is empty doing nothing");
     } else {
-        let icecandidate: IceCandidateSend = match serde_json_wasm::from_str(&candidate) {
+        let icecandidate: IceCandidate = match serde_json_wasm::from_str(&candidate) {
             Ok(x) => x,
             Err(_e) => {
                 let message = format!("Could not deserialize Ice Candidate {} ", candidate);

@@ -1,30 +1,30 @@
-use std::convert::TryInto;
 use std::cell::RefCell;
+use std::convert::TryInto;
 use std::rc::Rc;
 
 use log::{debug, error, info, warn};
 
 use js_sys::Promise;
+use wasm_bindgen::closure::Closure;
+use wasm_bindgen::prelude::wasm_bindgen;
+use wasm_bindgen::{JsCast, JsValue, UnwrapThrowExt};
 use web_sys::{
     Document, Element, HtmlButtonElement, HtmlInputElement, HtmlLabelElement, HtmlVideoElement,
     MediaStream, MediaStreamConstraints, MessageEvent, RtcDataChannel, RtcDataChannelEvent,
     RtcIceConnectionState, RtcPeerConnection, WebSocket,
 };
-use wasm_bindgen::prelude::wasm_bindgen;
-use wasm_bindgen::{JsCast, JsValue, UnwrapThrowExt};
-use wasm_bindgen::closure::Closure;
 
 use shared_protocol::{SessionID, SignalEnum, UserID};
 
-mod websockets;
 mod ice;
 mod sdp;
 mod utils;
+mod websockets;
 
-use crate::websockets::open_web_socket;
-use crate::ice::{recieved_new_ice_candidate, setup_RTCPeerConnection_ICECallbacks};
+use crate::ice::{received_new_ice_candidate, setup_RTCPeerConnection_ICECallbacks};
 use crate::sdp::{create_SDP_offer, receieve_SDP_answer, receieve_SDP_offer_send_answer};
 use crate::utils::set_panic_hook;
+use crate::websockets::open_web_socket;
 
 async fn handle_message_reply(
     message: String,
@@ -63,7 +63,7 @@ async fn handle_message_reply(
             receieve_SDP_answer(rtc_conn.clone(), answer).await?;
         }
         SignalEnum::IceCandidate(candidate, _) => {
-            recieved_new_ice_candidate(candidate, rtc_conn.clone()).await?;
+            received_new_ice_candidate(candidate, rtc_conn.clone()).await?;
         }
         SignalEnum::SessionReady(session_id) => {
             info!("SessionReady Recieved ! {:?}", session_id);
@@ -308,12 +308,11 @@ pub async fn setup_listenner(
         let ondatachannel_callback = Closure::wrap(Box::new(move |ev: RtcDataChannelEvent| {
             let dc2 = ev.channel();
             info!("peer_b.ondatachannel! : {}", dc2.label());
-            let onmessage_callback =
-                Closure::wrap(
-                    Box::new(move |ev: MessageEvent| if let Some(message) = ev.data().as_string() {
-                        warn!("{:?}", message)
-                    }) as Box<dyn FnMut(MessageEvent)>,
-                );
+            let onmessage_callback = Closure::wrap(Box::new(move |ev: MessageEvent| {
+                if let Some(message) = ev.data().as_string() {
+                    warn!("{:?}", message)
+                }
+            }) as Box<dyn FnMut(MessageEvent)>);
             dc2.set_onmessage(Some(onmessage_callback.as_ref().unchecked_ref()));
             onmessage_callback.forget();
             dc2.send_with_str("Ping from peer_b.dc!").unwrap();
@@ -376,13 +375,13 @@ fn host_session(ws: WebSocket) {
 // |_____| |_| |_| |_|  \__| |_|  \__,_|  \__| |_|  \___/  |_|
 
 fn peer_a_dc_on_message(dc: RtcDataChannel) -> Closure<dyn FnMut(MessageEvent)> {
-    Closure::wrap(
-        Box::new(move |ev: MessageEvent| if let Some(message) = ev.data().as_string() {
+    Closure::wrap(Box::new(move |ev: MessageEvent| {
+        if let Some(message) = ev.data().as_string() {
             warn!("{:?}", message);
             dc.send_with_str("Pongity Pong from peer_a data channel!")
-            .unwrap();
-        }) as Box<dyn FnMut(MessageEvent)>,
-    )
+                .unwrap();
+        }
+    }) as Box<dyn FnMut(MessageEvent)>)
 }
 
 pub async fn setup_initiator(

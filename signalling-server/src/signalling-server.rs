@@ -1,12 +1,4 @@
-#[macro_use]
-extern crate log;
-extern crate simplelog;
-
 use std::fs::File;
-
-use log::{warn, SetLoggerError};
-use simplelog::{CombinedLogger, LevelFilter, TermLogger, TerminalMode, WriteLogger};
-
 use std::{
     collections::HashMap,
     io::Error as IoError,
@@ -14,31 +6,24 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use futures::prelude::*;
-use futures::{
-    channel::mpsc::{unbounded, UnboundedSender},
-    future, pin_mut,
-};
-
 use async_std::net::{TcpListener, TcpStream};
 use async_std::task;
 use async_tungstenite::tungstenite::protocol::Message;
-
+use futures::{
+    channel::mpsc::{unbounded, UnboundedSender},
+    future, pin_mut, StreamExt, TryStreamExt,
+};
+use log::{debug, error, info, warn, SetLoggerError};
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
+use simplelog::{CombinedLogger, LevelFilter, TermLogger, TerminalMode, WriteLogger};
 
-// From Workspace
-use shared_protocol::*;
-
-// Type Alias
 type Tx = UnboundedSender<Message>;
 type PeerMap = Arc<Mutex<HashMap<SocketAddr, Tx>>>;
 type UserList = Arc<Mutex<HashMap<UserID, SocketAddr>>>;
 
-// type UserID      = String;
 type SessionList = Arc<Mutex<HashMap<SessionID, SessionMembers>>>;
 
-// Constants
 const LOG_FILE: &str = "signalling_server_prototype.log";
 
 #[derive(Debug, Clone)]
@@ -65,7 +50,9 @@ fn setup_logging() -> Result<(), SetLoggerError> {
 }
 
 // Get Server IP
+use shared_protocol::{SessionID, SignalEnum, UserID};
 use std::net::UdpSocket;
+
 pub fn get_local_ip() -> Option<String> {
     let socket = match UdpSocket::bind("0.0.0.0:0") {
         Ok(s) => s,

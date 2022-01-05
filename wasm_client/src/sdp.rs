@@ -1,8 +1,8 @@
 use js_sys::Reflect;
 
 use log::{info, warn};
+use wasm_bindgen::JsValue;
 
-use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 
 use web_sys::{RtcPeerConnection, RtcSdpType, RtcSessionDescriptionInit};
