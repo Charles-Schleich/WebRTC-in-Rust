@@ -454,7 +454,9 @@ async fn handle_connection(
 
     // Here we reply with WS Connection ID
     // TODO better Error handling
-    reply_with_id(tx, user_id.clone());
+    reply_with_id(tx, user_id.clone()).unwrap_or_else(|e| {
+        error!("Failed to reply with id: {}", e);
+    });
 
     // HERE THE FUN BEGINS
     let (outgoing, incoming) = ws_stream.split();

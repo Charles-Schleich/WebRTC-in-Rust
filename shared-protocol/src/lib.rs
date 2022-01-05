@@ -16,9 +16,9 @@ impl SessionID {
     }
 }
 
-impl Into<SessionID> for &str {
-    fn into(self) -> SessionID {
-        SessionID::new(self.into())
+impl From<&str> for SessionID {
+    fn from(session_id: &str) -> Self {
+        SessionID(session_id.to_string())
     }
 }
 

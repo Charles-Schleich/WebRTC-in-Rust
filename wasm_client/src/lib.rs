@@ -1,34 +1,31 @@
-#![allow(non_snake_case)]
-
-mod utils;
-use js_sys::Promise;
-use log::{debug, error, info, warn};
 use std::convert::TryInto;
-use wasm_bindgen::prelude::*;
-use wasm_bindgen::JsCast;
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use log::{debug, error, info, warn};
+
+use js_sys::Promise;
 use web_sys::{
     Document, Element, HtmlButtonElement, HtmlInputElement, HtmlLabelElement, HtmlVideoElement,
     MediaStream, MediaStreamConstraints, MessageEvent, RtcDataChannel, RtcDataChannelEvent,
     RtcIceConnectionState, RtcPeerConnection, WebSocket,
 };
+use wasm_bindgen::prelude::wasm_bindgen;
+use wasm_bindgen::{JsCast, JsValue, UnwrapThrowExt};
+use wasm_bindgen::closure::Closure;
 
-use std::cell::RefCell;
-use std::rc::Rc;
+use shared_protocol::{SessionID, SignalEnum, UserID};
 
-// local
 mod websockets;
-use websockets::*;
-
 mod ice;
-use ice::*;
-
 mod sdp;
-use sdp::*;
+mod utils;
 
-use shared_protocol::*;
+use crate::websockets::open_web_socket;
+use crate::ice::{recieved_new_ice_candidate, setup_RTCPeerConnection_ICECallbacks};
+use crate::sdp::{create_SDP_offer, receieve_SDP_answer, receieve_SDP_offer_send_answer};
 use crate::utils::set_panic_hook;
 
-// Functions !
 async fn handle_message_reply(
     message: String,
     rtc_conn: RtcPeerConnection,
@@ -261,21 +258,21 @@ fn setup_show_signalling_server_state(ws: WebSocket) {
 // |______| |_| |___/  \__|  \___| |_| |_| |_| |_|  \___| |_|
 
 pub async fn setup_listenner(
-    peer_B: RtcPeerConnection,
+    peer_b: RtcPeerConnection,
     websocket: WebSocket,
     rc_state: Rc<RefCell<AppState>>,
 ) -> Result<(), JsValue> {
     let window = web_sys::window().expect("No window Found");
-    let document: Document = window.document().expect("Couldnt Get Document");
+    let document: Document = window.document().expect("Couldn't Get Document");
 
     let ws_clone_external = websocket;
-    let peer_B_clone_external = peer_B;
+    let peer_b_clone_external = peer_b;
     let document_clone_external = document.clone();
     let rc_state_clone_external = rc_state;
 
     let btn_cb = Closure::wrap(Box::new(move || {
         let ws_clone = ws_clone_external.clone();
-        let peer_B_clone = peer_B_clone_external.clone();
+        let peer_b_clone = peer_b_clone_external.clone();
         let document_clone = document_clone_external.clone();
         let rc_state_clone_interal = rc_state_clone_external.clone();
 
@@ -285,20 +282,20 @@ pub async fn setup_listenner(
         let videoelem = "peer_a_video".into();
 
         let ice_state_change =
-            rtc_ice_state_change(peer_B_clone.clone(), document_clone, videoelem);
-        peer_B_clone
+            rtc_ice_state_change(peer_b_clone.clone(), document_clone, videoelem);
+        peer_b_clone
             .set_oniceconnectionstatechange(Some(ice_state_change.as_ref().unchecked_ref()));
         ice_state_change.forget();
 
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////
         // Start Local Video Callback
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        let peer_B_clone_media = peer_B_clone_external.clone();
+        let peer_b_clone_media = peer_b_clone_external.clone();
         wasm_bindgen_futures::spawn_local(async move {
             let mediastream = get_video(String::from("peer_b_video"))
                 .await
                 .expect_throw("Couldnt Get Media Stream");
-            peer_B_clone_media.add_stream(&mediastream);
+            peer_b_clone_media.add_stream(&mediastream);
         });
 
         // NB !!!
@@ -310,30 +307,29 @@ pub async fn setup_listenner(
          */
         let ondatachannel_callback = Closure::wrap(Box::new(move |ev: RtcDataChannelEvent| {
             let dc2 = ev.channel();
-            info!("peer_B.ondatachannel! : {}", dc2.label());
+            info!("peer_b.ondatachannel! : {}", dc2.label());
             let onmessage_callback =
                 Closure::wrap(
-                    Box::new(move |ev: MessageEvent| match ev.data().as_string() {
-                        Some(message) => warn!("{:?}", message),
-                        None => {}
+                    Box::new(move |ev: MessageEvent| if let Some(message) = ev.data().as_string() {
+                        warn!("{:?}", message)
                     }) as Box<dyn FnMut(MessageEvent)>,
                 );
             dc2.set_onmessage(Some(onmessage_callback.as_ref().unchecked_ref()));
             onmessage_callback.forget();
-            dc2.send_with_str("Ping from peer_B.dc!").unwrap();
+            dc2.send_with_str("Ping from peer_b.dc!").unwrap();
         })
             as Box<dyn FnMut(RtcDataChannelEvent)>);
 
-        peer_B_clone.set_ondatachannel(Some(ondatachannel_callback.as_ref().unchecked_ref()));
+        peer_b_clone.set_ondatachannel(Some(ondatachannel_callback.as_ref().unchecked_ref()));
         ondatachannel_callback.forget();
 
-        let peer_B_clone = peer_B_clone_external.clone();
+        let peer_b_clone = peer_b_clone_external.clone();
         let ws_clone1 = ws_clone.clone();
         let rc_state_clone = rc_state_clone_interal;
         wasm_bindgen_futures::spawn_local(async move {
             // Setup ICE callbacks
             let res =
-                setup_RTCPeerConnection_ICECallbacks(peer_B_clone, ws_clone1, rc_state_clone).await;
+                setup_RTCPeerConnection_ICECallbacks(peer_b_clone, ws_clone1, rc_state_clone).await;
             if res.is_err() {
                 log::error!("Error Setting up ice callbacks {:?}", res.unwrap_err())
             }
@@ -379,21 +375,18 @@ fn host_session(ws: WebSocket) {
 //  _| |_  | | | | | | | |_  | | | (_| | | |_  | | | (_) | | |
 // |_____| |_| |_| |_|  \__| |_|  \__,_|  \__| |_|  \___/  |_|
 
-fn peer_A_dc_on_message(dc: RtcDataChannel) -> Closure<dyn FnMut(MessageEvent)> {
+fn peer_a_dc_on_message(dc: RtcDataChannel) -> Closure<dyn FnMut(MessageEvent)> {
     Closure::wrap(
-        Box::new(move |ev: MessageEvent| match ev.data().as_string() {
-            Some(message) => {
-                warn!("{:?}", message);
-                dc.send_with_str("Pongity Pong from peer_A data channel!")
-                    .unwrap();
-            }
-            None => {}
+        Box::new(move |ev: MessageEvent| if let Some(message) = ev.data().as_string() {
+            warn!("{:?}", message);
+            dc.send_with_str("Pongity Pong from peer_a data channel!")
+            .unwrap();
         }) as Box<dyn FnMut(MessageEvent)>,
     )
 }
 
 pub async fn setup_initiator(
-    peer_A: RtcPeerConnection,
+    peer_a: RtcPeerConnection,
     websocket: WebSocket,
     rc_state: Rc<RefCell<AppState>>,
 ) -> Result<(), JsValue> {
@@ -401,32 +394,32 @@ pub async fn setup_initiator(
     let document: Document = window.document().expect("Couldnt Get Document");
 
     let ws_clone_external = websocket;
-    let peer_A_clone_external = peer_A.clone();
+    let peer_a_clone_external = peer_a.clone();
     let rc_state_clone_ext = rc_state;
 
     /*
-     * Create DataChannel on peer_A to negotiate
+     * Create DataChannel on peer_a to negotiate
      * Message will be shown here after connection established
      */
 
-    info!("peer_A State 1: {:?}", peer_A.signaling_state());
-    let dc1 = peer_A.create_data_channel("my-data-channel");
+    info!("peer_a State 1: {:?}", peer_a.signaling_state());
+    let dc1 = peer_a.create_data_channel("my-data-channel");
     info!("dc1 created: label {:?}", dc1.label());
 
     let dc1_clone = dc1.clone();
-    let onmessage_callback = peer_A_dc_on_message(dc1_clone);
+    let onmessage_callback = peer_a_dc_on_message(dc1_clone);
     dc1.set_onmessage(Some(onmessage_callback.as_ref().unchecked_ref()));
     onmessage_callback.forget();
 
     let btn_cb = Closure::wrap(Box::new(move || {
         let ws_clone = ws_clone_external.clone();
-        let peer_A_clone = peer_A_clone_external.clone();
+        let peer_a_clone = peer_a_clone_external.clone();
         let rc_state_clone = rc_state_clone_ext.clone();
 
         wasm_bindgen_futures::spawn_local(async move {
             // Setup ICE callbacks
             let res = setup_RTCPeerConnection_ICECallbacks(
-                peer_A_clone.clone(),
+                peer_a_clone.clone(),
                 ws_clone.clone(),
                 rc_state_clone.clone(),
             )
@@ -454,8 +447,8 @@ pub async fn setup_initiator(
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////
     let videoelem = "peer_b_video".into();
     // let state_lbl = "InitiatorState".into();
-    let ice_state_change = rtc_ice_state_change(peer_A.clone(), document, videoelem);
-    peer_A.set_oniceconnectionstatechange(Some(ice_state_change.as_ref().unchecked_ref()));
+    let ice_state_change = rtc_ice_state_change(peer_a.clone(), document, videoelem);
+    peer_a.set_oniceconnectionstatechange(Some(ice_state_change.as_ref().unchecked_ref()));
     ice_state_change.forget();
 
     // ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
