@@ -39,7 +39,7 @@ pub async fn setup_RTCPeerConnection_ICECallbacks(
     ws: WebSocket,
     rc_state: Rc<RefCell<AppState>>,
 ) -> Result<RtcPeerConnection, JsValue> {
-    let onicecandidate_callback1 =
+    let onicecandidate_callback =
         Closure::wrap(
             Box::new(move |ev: RtcPeerConnectionIceEvent| match ev.candidate() {
                 Some(candidate) => {
@@ -74,8 +74,8 @@ pub async fn setup_RTCPeerConnection_ICECallbacks(
                 }
             }) as Box<dyn FnMut(RtcPeerConnectionIceEvent)>,
         );
-    rtc_conn.set_onicecandidate(Some(onicecandidate_callback1.as_ref().unchecked_ref()));
-    onicecandidate_callback1.forget();
+    rtc_conn.set_onicecandidate(Some(onicecandidate_callback.as_ref().unchecked_ref()));
+    onicecandidate_callback.forget();
     Ok(rtc_conn)
 }
 
@@ -85,7 +85,7 @@ pub async fn received_new_ice_candidate(
 ) -> Result<(), JsValue> {
     warn!("ICECandidate Received! {}", candidate);
 
-    if candidate.eq("") {
+    if candidate.is_empty() {
         info!("ICECandidate! is empty doing nothing");
     } else {
         let icecandidate: IceCandidate = match serde_json_wasm::from_str(&candidate) {

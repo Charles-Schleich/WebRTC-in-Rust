@@ -114,7 +114,6 @@ fn handle_message(
 
     // Result and who it needs to go to
     // 2 types of messages, either send to origin, or to other peer
-    // match (message, destination) {
     let (message_to_client, destination) = match result {
         SignalEnum::VideoOffer(offer, session_id) => {
             let mut session_list_lock = session_list.lock().unwrap();
@@ -126,7 +125,7 @@ fn handle_message(
                         "VideoOffer Session {} Does NOT Exist, Groot kak",
                         session_id.inner()
                     );
-                    error!("VideoOffer Session Doesn NOT Exist, Groot kak");
+                    error!("VideoOffer Session Does NOT Exist, Groot kak");
                     return Err(e_msg);
                 }
                 Some(session_members) => {
@@ -190,10 +189,10 @@ fn handle_message(
             match possible_session {
                 None => {
                     let e_msg = format!(
-                        "IceCandidate Session {} Doesn NOT Exist, Groot kak",
+                        "IceCandidate Session {} Does NOT Exist, Groot kak",
                         session_id.inner()
                     );
-                    error!("IceCandidate Session Doesn NOT Exist, Groot kak");
+                    error!("IceCandidate Session Does NOT Exist, Groot kak");
                     return Err(e_msg);
                 }
                 Some(session_members) => {

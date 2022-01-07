@@ -1,10 +1,14 @@
+mod ice;
+mod sdp;
+mod utils;
+mod websockets;
+
 use std::cell::RefCell;
 use std::convert::TryInto;
 use std::rc::Rc;
 
 use log::{debug, error, info, warn};
-
-use js_sys::Promise;
+use js_sys::{Array, Object, Promise, Reflect};
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue, UnwrapThrowExt};
@@ -16,21 +20,16 @@ use web_sys::{
 
 use shared_protocol::{SessionID, SignalEnum, UserID};
 
-mod ice;
-mod sdp;
-mod utils;
-mod websockets;
-
 use crate::ice::{received_new_ice_candidate, setup_RTCPeerConnection_ICECallbacks};
-use crate::sdp::{create_SDP_offer, receieve_SDP_answer, receieve_SDP_offer_send_answer};
+use crate::sdp::{create_SDP_offer, receive_SDP_answer, receive_SDP_offer_send_answer};
 use crate::utils::set_panic_hook;
 use crate::websockets::open_web_socket;
 
 async fn handle_message_reply(
     message: String,
-    rtc_conn: RtcPeerConnection,
-    ws: WebSocket,
-    rc_state: Rc<RefCell<AppState>>,
+    peer_connection: RtcPeerConnection,
+    websocket: WebSocket,
+    app_state: Rc<RefCell<AppState>>,
 ) -> Result<(), JsValue> {
     let result = match serde_json_wasm::from_str(&message) {
         Ok(x) => x,
@@ -42,32 +41,32 @@ async fn handle_message_reply(
 
     match result {
         SignalEnum::VideoOffer(offer, session_id) => {
-            warn!("VideoOffer Recieved ");
-            let sdp_answer = receieve_SDP_offer_send_answer(rtc_conn.clone(), offer).await?;
+            warn!("VideoOffer Received ");
+            let sdp_answer = receive_SDP_offer_send_answer(peer_connection.clone(), offer).await?;
             let signal = SignalEnum::VideoAnswer(sdp_answer, session_id);
             let response: String = match serde_json_wasm::to_string(&signal) {
                 Ok(x) => x,
                 Err(e) => {
-                    error!("Could not Seralize Video Offer {}", e);
-                    return Err(JsValue::from_str("Could not Seralize Video Offer"));
+                    error!("Could not Serialize Video Offer {}", e);
+                    return Err(JsValue::from_str("Could not Serialize Video Offer"));
                 }
             };
 
-            match ws.send_with_str(&response) {
+            match websocket.send_with_str(&response) {
                 Ok(_) => info!("Video Offer SignalEnum sent"),
                 Err(err) => error!("Error sending Video Offer SignalEnum: {:?}", err),
             }
         }
         SignalEnum::VideoAnswer(answer, _) => {
-            info!("Video Answer Recieved! {}", answer);
-            receieve_SDP_answer(rtc_conn.clone(), answer).await?;
+            info!("Video Answer Received! {}", answer);
+            receive_SDP_answer(peer_connection.clone(), answer).await?;
         }
         SignalEnum::IceCandidate(candidate, _) => {
-            received_new_ice_candidate(candidate, rtc_conn.clone()).await?;
+            received_new_ice_candidate(candidate, peer_connection.clone()).await?;
         }
         SignalEnum::SessionReady(session_id) => {
-            info!("SessionReady Recieved ! {:?}", session_id);
-            let mut state = rc_state.borrow_mut();
+            info!("SessionReady Received ! {:?}", session_id);
+            let mut state = app_state.borrow_mut();
             state.set_session_id(session_id.clone());
             set_html_label("sessionid_lbl", session_id.inner());
         }
@@ -75,21 +74,21 @@ async fn handle_message_reply(
             info!("SessionJoinSuccess {}", session_id.clone().inner());
             set_session_connection_status_error("".into());
             // Initiate the videocall
-            send_video_offer(rtc_conn.clone(), ws.clone(), session_id.clone()).await;
+            send_video_offer(peer_connection.clone(), websocket.clone(), session_id.clone()).await;
             let full_string = format!("Connected to Session: {}", session_id.inner());
             set_html_label("session_connection_status", full_string);
             set_html_label("sessionid_heading", "".into());
         }
-        SignalEnum::SessionJoinError(sessionid) => {
-            error!("SessionJoinError! {}", sessionid.clone().inner());
-            set_session_connection_status_error(sessionid.inner());
+        SignalEnum::SessionJoinError(session_id) => {
+            error!("SessionJoinError! {}", session_id.clone().inner());
+            set_session_connection_status_error(session_id.inner());
         }
         SignalEnum::SessionJoin(session_id) => {
             info!("{}", session_id.inner())
         }
         SignalEnum::NewUser(user_id) => {
             info!("New User Received ! {}", user_id.clone().inner());
-            let mut state = rc_state.borrow_mut();
+            let mut state = app_state.borrow_mut();
             state.set_user_id(user_id);
         }
         SignalEnum::ICEError(err, session_id) => {
@@ -97,7 +96,7 @@ async fn handle_message_reply(
         }
         /////////////////////////////////////////////////////
         remaining => {
-            error!("Frontend should not recieve {:?}", remaining);
+            error!("Frontend should not receive {:?}", remaining);
         }
     };
     Ok(())
@@ -108,7 +107,7 @@ async fn handle_message_reply(
 // | |  __    ___  | |_     \ \  / /   _    __| |   ___    ___
 // | | |_ |  / _ \ | __|     \ \/ /   | |  / _` |  / _ \  / _ \
 // | |__| | |  __/ | |_       \  /    | | | (_| | |  __/ | (_) |
-// \_____|  \___|  \__|       \/     |_|  \__,_|  \___|  \___/
+//  \_____|  \___|  \__|       \/     |_|  \__,_|  \___|  \___/
 
 #[wasm_bindgen]
 pub async fn get_video(video_id: String) -> Result<MediaStream, JsValue> {
@@ -137,7 +136,7 @@ pub async fn get_video(video_id: String) -> Result<MediaStream, JsValue> {
         None => return Err(JsValue::from_str("No Element video found")),
     };
 
-    // info!("video_element {:?}",video_element);
+    // debug!("video_element {:?}", video_element);
 
     let media_stream: MediaStream = match wasm_bindgen_futures::JsFuture::from(stream_promise).await
     {
@@ -161,9 +160,9 @@ pub async fn get_video(video_id: String) -> Result<MediaStream, JsValue> {
         }
     };
 
-    // info!("vid_elem {:?}",vid_elem);
+    // debug!("vid_elem {:?}", vid_elem);
     vid_elem.set_src_object(Some(&media_stream));
-    // info!("media_stream {:?}",media_stream);
+    // debug!("media_stream {:?}", media_stream);
 
     Ok(media_stream)
 }
@@ -177,7 +176,7 @@ pub async fn get_video(video_id: String) -> Result<MediaStream, JsValue> {
 
 fn setup_show_state(rtc_conn: RtcPeerConnection, state: Rc<RefCell<AppState>>) {
     let window = web_sys::window().expect("No window Found");
-    let document: Document = window.document().expect("Couldnt Get Document");
+    let document: Document = window.document().expect("Couldn't Get Document");
 
     // DEBUG BUTTONS
     let rtc_clone_external = rtc_conn;
@@ -215,13 +214,13 @@ fn show_rtc_state(rtc_conn: RtcPeerConnection, state: Rc<RefCell<AppState>>) {
 
 fn setup_show_signalling_server_state(ws: WebSocket) {
     let window = web_sys::window().expect("No window Found");
-    let document: Document = window.document().expect("Couldnt Get Document");
+    let document: Document = window.document().expect("Couldn't Get Document");
 
     // DEBUG BUTTONS
     let btn_cb = Closure::wrap(Box::new(move || {
         let msg = SignalEnum::Debug;
         let ser_msg: String =
-            serde_json_wasm::to_string(&msg).expect("Couldnt Serialize SginalEnum::Debug Message");
+            serde_json_wasm::to_string(&msg).expect("Couldn't Serialize SignalEnum::Debug Message");
 
         match ws.clone().send_with_str(&ser_msg) {
             Ok(_) => {}
@@ -257,7 +256,7 @@ fn setup_show_signalling_server_state(ws: WebSocket) {
 // | |____  | | \__ \ | |_  |  __/ | | | | | | | | |  __/ | |
 // |______| |_| |___/  \__|  \___| |_| |_| |_| |_|  \___| |_|
 
-pub async fn setup_listenner(
+pub async fn setup_listener(
     peer_b: RtcPeerConnection,
     websocket: WebSocket,
     rc_state: Rc<RefCell<AppState>>,
@@ -274,15 +273,15 @@ pub async fn setup_listenner(
         let ws_clone = ws_clone_external.clone();
         let peer_b_clone = peer_b_clone_external.clone();
         let document_clone = document_clone_external.clone();
-        let rc_state_clone_interal = rc_state_clone_external.clone();
+        let rc_state_clone_internal = rc_state_clone_external.clone();
 
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////
         // Start Remote Video Callback
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        let videoelem = "peer_a_video".into();
+        let video_elem = "peer_a_video".into();
 
         let ice_state_change =
-            rtc_ice_state_change(peer_b_clone.clone(), document_clone, videoelem);
+            rtc_ice_state_change(peer_b_clone.clone(), document_clone, video_elem);
         peer_b_clone
             .set_oniceconnectionstatechange(Some(ice_state_change.as_ref().unchecked_ref()));
         ice_state_change.forget();
@@ -294,13 +293,13 @@ pub async fn setup_listenner(
         wasm_bindgen_futures::spawn_local(async move {
             let mediastream = get_video(String::from("peer_b_video"))
                 .await
-                .expect_throw("Couldnt Get Media Stream");
+                .expect_throw("Couldn't Get Media Stream");
             peer_b_clone_media.add_stream(&mediastream);
         });
 
         // NB !!!
         // Need to setup Media Stream BEFORE sending SDP offer
-        // SDP offer Contains information about the Video Streamming technologies available to this and the other broswer
+        // SDP offer Contains information about the Video Streaming technologies available to this and the other browser
         /*
          * If negotiation has done, this closure will be called
          *
@@ -324,7 +323,7 @@ pub async fn setup_listenner(
 
         let peer_b_clone = peer_b_clone_external.clone();
         let ws_clone1 = ws_clone.clone();
-        let rc_state_clone = rc_state_clone_interal;
+        let rc_state_clone = rc_state_clone_internal;
         wasm_bindgen_futures::spawn_local(async move {
             // Setup ICE callbacks
             let res =
@@ -354,7 +353,7 @@ fn host_session(ws: WebSocket) {
     let ser_msg: String = match serde_json_wasm::to_string(&msg) {
         Ok(x) => x,
         Err(e) => {
-            error!("Could not Seralize SessionNew {}", e);
+            error!("Could not serialize SessionNew {}", e);
             return;
         }
     };
@@ -390,7 +389,7 @@ pub async fn setup_initiator(
     rc_state: Rc<RefCell<AppState>>,
 ) -> Result<(), JsValue> {
     let window = web_sys::window().expect("No window Found");
-    let document: Document = window.document().expect("Couldnt Get Document");
+    let document: Document = window.document().expect("Couldn't Get Document");
 
     let ws_clone_external = websocket;
     let peer_a_clone_external = peer_a.clone();
@@ -430,7 +429,7 @@ pub async fn setup_initiator(
                 )
             }
 
-            try_connect_to_sesison(ws_clone.clone());
+            try_connect_to_session(ws_clone.clone());
         })
     }) as Box<dyn FnMut()>);
     document
@@ -500,7 +499,7 @@ fn rtc_ice_state_change(
 
 fn set_html_label(html_label: &str, session_id: String) {
     let window = web_sys::window().expect("No window Found, We've got bigger problems here");
-    let document: Document = window.document().expect("Couldnt Get Document");
+    let document: Document = window.document().expect("Couldn't Get Document");
     document
         .get_element_by_id(html_label)
         .unwrap_or_else(|| panic!("Should have {} on the page", html_label))
@@ -511,7 +510,7 @@ fn set_html_label(html_label: &str, session_id: String) {
 
 fn get_session_id_from_input() -> String {
     let window = web_sys::window().expect("No window Found, We've got bigger problems here");
-    let document: Document = window.document().expect("Couldnt Get Document");
+    let document: Document = window.document().expect("Couldn't Get Document");
     let sid_input = "sid_input";
 
     let sid_input = document
@@ -526,7 +525,7 @@ fn get_session_id_from_input() -> String {
 
 fn set_session_connection_status_error(error: String) {
     let window = web_sys::window().expect("No window Found, We've got bigger problems here");
-    let document: Document = window.document().expect("Couldnt Get Document");
+    let document: Document = window.document().expect("Couldn't Get Document");
     let ws_conn_lbl = "session_connection_status_error";
 
     let e_string;
@@ -544,14 +543,14 @@ fn set_session_connection_status_error(error: String) {
         .set_text_content(Some(&e_string));
 }
 
-fn try_connect_to_sesison(ws: WebSocket) {
+fn try_connect_to_session(ws: WebSocket) {
     let session_id_string = get_session_id_from_input();
     let session_id = SessionID::new(session_id_string);
     let msg = SignalEnum::SessionJoin(session_id);
     let ser_msg: String = match serde_json_wasm::to_string(&msg) {
         Ok(x) => x,
         Err(e) => {
-            error!("Could not Seralize SessionJoin {}", e);
+            error!("Could not serialize SessionJoin {}", e);
             return;
         }
     };
@@ -566,10 +565,10 @@ fn try_connect_to_sesison(ws: WebSocket) {
 async fn send_video_offer(rtc_conn: RtcPeerConnection, ws: WebSocket, session_id: SessionID) {
     //  NB !!!
     // Need to setup Media Stream BEFORE sending SDP offer
-    // SDP offer Contains information about the Video Streamming technologies available to this and the other broswer
+    // SDP offer Contains information about the Video Streaming technologies available to this and the other browser
     let mediastream = get_video(String::from("peer_a_video"))
         .await
-        .expect_throw("Couldnt Get Media Stream");
+        .expect_throw("Couldn't Get Media Stream");
     debug!("peer_a_video result {:?}", mediastream);
     rtc_conn.add_stream(&mediastream);
     let tracks = mediastream.get_tracks();
@@ -581,7 +580,7 @@ async fn send_video_offer(rtc_conn: RtcPeerConnection, ws: WebSocket, session_id
     let ser_msg: String = match serde_json_wasm::to_string(&msg) {
         Ok(x) => x,
         Err(e) => {
-            error!("Could not Seralize Video Offer {}", e);
+            error!("Could not serialize VideoOffer {}", e);
             return;
         }
     };
@@ -607,7 +606,7 @@ pub async fn start() {
     set_panic_hook();
 
     wasm_logger::init(wasm_logger::Config::new(log::Level::Debug));
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
     let state = AppState {
         session_id: None,
         user_id: None,
@@ -621,10 +620,10 @@ pub async fn start() {
         .unwrap_throw();
     setup_show_signalling_server_state(websocket.clone());
 
-    setup_listenner(rtc_conn.clone(), websocket.clone(), rc_state.clone())
+    setup_listener(rtc_conn.clone(), websocket.clone(), rc_state.clone())
         .await
         .unwrap_throw();
-    info!("Setup Listenner");
+    info!("Setup Listener");
     setup_initiator(rtc_conn.clone(), websocket.clone(), rc_state.clone())
         .await
         .unwrap_throw();

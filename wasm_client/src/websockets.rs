@@ -19,7 +19,6 @@ use crate::{handle_message_reply, AppState};
 
 const WS_IP_PORT: &str = "ws://192.168.0.150:2794";
 
-// #[wasm_bindgen]
 pub async fn open_web_socket(
     rtc_conn: RtcPeerConnection,
     rc_state: Rc<RefCell<AppState>>,
@@ -34,11 +33,11 @@ pub async fn open_web_socket(
     //  ON MESSAGE CALLBACK
     let onmessage_callback = Closure::wrap(Box::new(move |ev: MessageEvent| {
         if let Ok(abuf) = ev.data().dyn_into::<js_sys::ArrayBuffer>() {
-            info!("WS: message event, recieved arraybuffer: {:?}", abuf);
+            info!("WS: message event, received arraybuffer: {:?}", abuf);
         } else if let Ok(blob) = ev.data().dyn_into::<web_sys::Blob>() {
-            info!("WS: message event, recieved blob: {:?}", blob);
+            info!("WS: message event, received blob: {:?}", blob);
         } else if let Ok(txt) = ev.data().dyn_into::<js_sys::JsString>() {
-            info!("WS: message event, recieved string: {:?}", txt);
+            info!("WS: message event, received string: {:?}", txt);
             let rust_string = String::from(txt);
             // put the below line in an asycn
             let rtc_conn_clone = rtc_conn.clone();

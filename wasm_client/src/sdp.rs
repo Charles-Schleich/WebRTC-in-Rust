@@ -15,7 +15,7 @@ use web_sys::{RtcPeerConnection, RtcSdpType, RtcSessionDescriptionInit};
 //  |_____/  |_____/  |_|        |_|  |_|  \__,_| |_| |_|  \__,_| |_|  \___| |_|    |___/
 
 #[allow(non_snake_case)]
-pub async fn receieve_SDP_answer(
+pub async fn receive_SDP_answer(
     peer_A: RtcPeerConnection,
     answer_sdp: String,
 ) -> Result<(), JsValue> {
@@ -30,11 +30,11 @@ pub async fn receieve_SDP_answer(
 }
 
 #[allow(non_snake_case)]
-pub async fn receieve_SDP_offer_send_answer(
+pub async fn receive_SDP_offer_send_answer(
     peer_B: RtcPeerConnection,
     offer_sdp: String,
 ) -> Result<String, JsValue> {
-    warn!("SDP: Video Offer Recieve! {:?}", offer_sdp);
+    warn!("SDP: Video Offer Receive! {}", offer_sdp);
 
     // Set Remote Description
     let mut offer_obj = RtcSessionDescriptionInit::new(RtcSdpType::Offer);
