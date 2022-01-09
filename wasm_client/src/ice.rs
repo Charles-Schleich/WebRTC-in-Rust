@@ -57,9 +57,6 @@ pub fn setup_RTCPeerConnection_ICECallbacks(
                         }
                     };
 
-                    // state.set_session_id(session_id.clone());
-                    // let session_id= String::from("12345");
-
                     let signal = SignalEnum::IceCandidate(js_ob, session_id);
                     let ice_candidate: String = serde_json_wasm::to_string(&signal).unwrap();
 

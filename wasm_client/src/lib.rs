@@ -12,11 +12,8 @@ use log::{debug, error, info, warn};
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue, UnwrapThrowExt};
-use web_sys::{
-    Document, Element, HtmlButtonElement, HtmlInputElement, HtmlLabelElement, HtmlVideoElement,
-    MediaStream, MediaStreamConstraints, MessageEvent, RtcDataChannel, RtcDataChannelEvent,
-    RtcIceConnectionState, RtcPeerConnection, WebSocket,
-};
+use wasm_bindgen_futures::JsFuture;
+use web_sys::{Document, Element, HtmlButtonElement, HtmlInputElement, HtmlLabelElement, HtmlVideoElement, MediaStream, MediaStreamConstraints, MessageEvent, RtcConfiguration, RtcDataChannel, RtcDataChannelEvent, RtcIceConnectionState, RtcPeerConnection, WebSocket};
 
 use shared_protocol::{SessionID, SignalEnum, UserID};
 
@@ -593,6 +590,23 @@ async fn send_video_offer(rtc_conn: RtcPeerConnection, ws: WebSocket, session_id
     }
 }
 
+const STUN_SERVER: &str = "stun:stun.l.google.com:19302";
+fn create_stun_peer_connection() -> Result<RtcPeerConnection, JsValue> {
+    let ice_servers = Array::new();
+    {
+        let server_entry = Object::new();
+
+        Reflect::set(&server_entry, &"urls".into(), &STUN_SERVER.into())?;
+
+        ice_servers.push(&*server_entry);
+    }
+
+    let mut rtc_configuration = RtcConfiguration::new();
+    rtc_configuration.ice_servers(&ice_servers);
+
+    RtcPeerConnection::new_with_configuration(&rtc_configuration)
+}
+
 //  __  __           _
 // |  \/  |         (_)
 // | \  / |   __ _   _   _ __
@@ -612,7 +626,8 @@ pub async fn start() {
     };
     let rc_state: Rc<RefCell<AppState>> = Rc::new(RefCell::new(state));
 
-    let rtc_conn = RtcPeerConnection::new().unwrap_throw();
+    // let rtc_conn = RtcPeerConnection::new().unwrap_throw();
+    let rtc_conn = create_stun_peer_connection().unwrap_throw();
     setup_show_state(rtc_conn.clone(), rc_state.clone());
     let websocket = open_web_socket(rtc_conn.clone(), rc_state.clone())
         .await
