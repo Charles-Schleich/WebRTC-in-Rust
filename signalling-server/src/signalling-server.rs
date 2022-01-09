@@ -491,7 +491,7 @@ async fn handle_connection(
     // Remove from User_List
     user_list.lock().unwrap().remove(&user_id);
 
-    // TODO: Close any sessions assoicated with the address IF user hosted the session.
+    // TODO: Close any sessions associated with the address IF user hosted the session.
     let sess_list: Vec<SessionID> = {
         session_list
             .lock()
@@ -513,19 +513,14 @@ async fn handle_connection(
 }
 
 async fn run() -> Result<(), IoError> {
-    let mut addr = get_local_ip().expect("Couldn't get IP");
-    addr.push_str(":2794");
-
     let user_list = UserList::new(Mutex::new(HashMap::new()));
     let session_list = SessionList::new(Mutex::new(HashMap::new()));
     let peer_map = PeerMap::new(Mutex::new(HashMap::new()));
 
     // Create the event loop and TCP listener we'll accept connections on.
-    let try_socket = TcpListener::bind(&addr).await;
+    let try_socket = TcpListener::bind("0.0.0.0:2794").await;
 
     let listener = try_socket.expect("Failed to bind");
-
-    info!("Listening on: {}", addr);
 
     // Let's spawn the handling of each connection in a separate Async task.
     while let Ok((stream, addr)) = listener.accept().await {

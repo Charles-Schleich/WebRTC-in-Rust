@@ -7,8 +7,8 @@ use std::cell::RefCell;
 use std::convert::TryInto;
 use std::rc::Rc;
 
-use log::{debug, error, info, warn};
 use js_sys::{Array, Object, Promise, Reflect};
+use log::{debug, error, info, warn};
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue, UnwrapThrowExt};
@@ -74,7 +74,12 @@ async fn handle_message_reply(
             info!("SessionJoinSuccess {}", session_id.clone().inner());
             set_session_connection_status_error("".into());
             // Initiate the videocall
-            send_video_offer(peer_connection.clone(), websocket.clone(), session_id.clone()).await;
+            send_video_offer(
+                peer_connection.clone(),
+                websocket.clone(),
+                session_id.clone(),
+            )
+            .await;
             let full_string = format!("Connected to Session: {}", session_id.inner());
             set_html_label("session_connection_status", full_string);
             set_html_label("sessionid_heading", "".into());
@@ -326,8 +331,7 @@ pub async fn setup_listener(
         let rc_state_clone = rc_state_clone_internal;
         wasm_bindgen_futures::spawn_local(async move {
             // Setup ICE callbacks
-            let res =
-                setup_RTCPeerConnection_ICECallbacks(peer_b_clone, ws_clone1, rc_state_clone).await;
+            let res = setup_RTCPeerConnection_ICECallbacks(peer_b_clone, ws_clone1, rc_state_clone);
             if res.is_err() {
                 log::error!("Error Setting up ice callbacks {:?}", res.unwrap_err())
             }
@@ -377,8 +381,7 @@ fn peer_a_dc_on_message(dc: RtcDataChannel) -> Closure<dyn FnMut(MessageEvent)> 
     Closure::wrap(Box::new(move |ev: MessageEvent| {
         if let Some(message) = ev.data().as_string() {
             warn!("{:?}", message);
-            dc.send_with_str("Pongity Pong from peer_a data channel!")
-                .unwrap();
+            dc.send_with_str("Pong from peer_a data channel!").unwrap();
         }
     }) as Box<dyn FnMut(MessageEvent)>)
 }
@@ -414,23 +417,19 @@ pub async fn setup_initiator(
         let peer_a_clone = peer_a_clone_external.clone();
         let rc_state_clone = rc_state_clone_ext.clone();
 
-        wasm_bindgen_futures::spawn_local(async move {
-            // Setup ICE callbacks
-            let res = setup_RTCPeerConnection_ICECallbacks(
-                peer_a_clone.clone(),
-                ws_clone.clone(),
-                rc_state_clone.clone(),
+        let res = setup_RTCPeerConnection_ICECallbacks(
+            peer_a_clone.clone(),
+            ws_clone.clone(),
+            rc_state_clone.clone(),
+        );
+        if res.is_err() {
+            error!(
+                "Error Setting up RTCPeerConnection ICE Callbacks {:?}",
+                res.unwrap_err()
             )
-            .await;
-            if res.is_err() {
-                error!(
-                    "Error Setting up RTCPeerConnection ICE Callbacks {:?}",
-                    res.unwrap_err()
-                )
-            }
+        }
 
-            try_connect_to_session(ws_clone.clone());
-        })
+        try_connect_to_session(ws_clone.clone());
     }) as Box<dyn FnMut()>);
     document
         .get_element_by_id("connect_to_session")
@@ -491,7 +490,7 @@ fn rtc_ice_state_change(
                 }
             }
             _ => {
-                warn!("Ice State {:?}", rtc_conn.ice_connection_state());
+                warn!("Ice State: {:?}", rtc_conn.ice_connection_state());
             }
         }
     }) as Box<dyn FnMut()>)

@@ -17,13 +17,13 @@ use crate::{handle_message_reply, AppState};
 //    \  /\  /    |  __/ | |_) |    ____) | | (_) | | (__  |   <  |  __/ | |_
 //     \/  \/      \___| |_.__/    |_____/   \___/   \___| |_|\_\  \___|  \__|
 
-const WS_IP_PORT: &str = "ws://192.168.0.150:2794";
+const WS_IP_PORT: &str = "ws://0.0.0.0:2794";
 
 pub async fn open_web_socket(
     rtc_conn: RtcPeerConnection,
     rc_state: Rc<RefCell<AppState>>,
 ) -> Result<WebSocket, JsValue> {
-    info!("Openning WS Connection");
+    info!("Opening WS Connection");
 
     let ws = WebSocket::new(WS_IP_PORT)?;
 
@@ -32,14 +32,17 @@ pub async fn open_web_socket(
     let cloned_state_ext = rc_state;
     //  ON MESSAGE CALLBACK
     let onmessage_callback = Closure::wrap(Box::new(move |ev: MessageEvent| {
-        if let Ok(abuf) = ev.data().dyn_into::<js_sys::ArrayBuffer>() {
-            info!("WS: message event, received arraybuffer: {:?}", abuf);
+        if let Ok(array_buffer) = ev.data().dyn_into::<js_sys::ArrayBuffer>() {
+            info!(
+                "WS: message event, received arraybuffer: {:?}",
+                array_buffer
+            );
         } else if let Ok(blob) = ev.data().dyn_into::<web_sys::Blob>() {
             info!("WS: message event, received blob: {:?}", blob);
         } else if let Ok(txt) = ev.data().dyn_into::<js_sys::JsString>() {
             info!("WS: message event, received string: {:?}", txt);
             let rust_string = String::from(txt);
-            // put the below line in an asycn
+            // put the below line in an async
             let rtc_conn_clone = rtc_conn.clone();
             let cloned_ws = cloned_ws_ext.clone();
             let cloned_state = cloned_state_ext.clone();
@@ -67,7 +70,7 @@ pub async fn open_web_socket(
     onmessage_callback.forget();
 
     let window = web_sys::window().expect("No window Found, We've got bigger problems here");
-    let document: Document = window.document().expect("Couldnt Get Document");
+    let document: Document = window.document().expect("Couldn't Get Document");
     let ws_conn_lbl = "ws_conn_lbl";
     let ws_conn_lbl_err = "ws_conn_lbl_err";
 

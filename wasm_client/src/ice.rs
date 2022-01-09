@@ -34,7 +34,7 @@ pub struct IceCandidate {
 
 // As soon as This peer has an ICE Candidate then send it over the websocket connection
 #[allow(non_snake_case)]
-pub async fn setup_RTCPeerConnection_ICECallbacks(
+pub fn setup_RTCPeerConnection_ICECallbacks(
     rtc_conn: RtcPeerConnection,
     ws: WebSocket,
     rc_state: Rc<RefCell<AppState>>,
