@@ -15,8 +15,8 @@ use web_sys::{
 use shared_protocol::{SessionID, SignalEnum, UserID};
 
 use crate::{
-    create_SDP_offer, receive_SDP_answer, receive_SDP_offer_send_answer,
-    received_new_ice_candidate, setup_RTCPeerConnection_ICECallbacks, wasm_bindgen,
+    create_sdp_offer, receive_sdp_answer, receive_sdp_offer_send_answer,
+    received_new_ice_candidate, setup_rtc_peer_connection_ice_callbacks, wasm_bindgen,
 };
 
 const STUN_SERVER: &str = "stun:stun.l.google.com:19302";
@@ -85,7 +85,7 @@ pub async fn handle_message_reply(
     match result {
         SignalEnum::VideoOffer(offer, session_id) => {
             warn!("VideoOffer Received ");
-            let sdp_answer = receive_SDP_offer_send_answer(peer_connection.clone(), offer).await?;
+            let sdp_answer = receive_sdp_offer_send_answer(peer_connection.clone(), offer).await?;
             let signal = SignalEnum::VideoAnswer(sdp_answer, session_id);
             let response: String = match serde_json_wasm::to_string(&signal) {
                 Ok(x) => x,
@@ -102,7 +102,7 @@ pub async fn handle_message_reply(
         }
         SignalEnum::VideoAnswer(answer, _) => {
             info!("Video Answer Received! {}", answer);
-            receive_SDP_answer(peer_connection.clone(), answer).await?;
+            receive_sdp_answer(peer_connection.clone(), answer).await?;
         }
         SignalEnum::IceCandidate(candidate, _) => {
             received_new_ice_candidate(candidate, peer_connection.clone()).await?;
@@ -335,7 +335,7 @@ pub async fn setup_listener(
         let rc_state_clone = rc_state_clone_internal;
 
         // Setup ICE callbacks
-        let res = setup_RTCPeerConnection_ICECallbacks(peer_b_clone, ws_clone1, rc_state_clone);
+        let res = setup_rtc_peer_connection_ice_callbacks(peer_b_clone, ws_clone1, rc_state_clone);
         if res.is_err() {
             log::error!("Error Setting up ice callbacks {:?}", res.unwrap_err())
         }
@@ -414,7 +414,7 @@ pub async fn setup_initiator(
         let rc_state_clone = rc_state_clone_ext.clone();
 
         let res =
-            setup_RTCPeerConnection_ICECallbacks(peer_a_clone, ws_clone.clone(), rc_state_clone);
+            setup_rtc_peer_connection_ice_callbacks(peer_a_clone, ws_clone.clone(), rc_state_clone);
         if res.is_err() {
             error!(
                 "Error Setting up RTCPeerConnection ICE Callbacks {:?}",
@@ -558,7 +558,7 @@ async fn send_video_offer(rtc_conn: RtcPeerConnection, ws: WebSocket, session_id
     debug!("peer_a_video Tracks {:?}", tracks);
 
     // Send SDP offer
-    let sdp_offer = create_SDP_offer(rtc_conn).await.unwrap_throw();
+    let sdp_offer = create_sdp_offer(rtc_conn).await.unwrap_throw();
     let msg = SignalEnum::VideoOffer(sdp_offer, session_id);
     let ser_msg: String = match serde_json_wasm::to_string(&msg) {
         Ok(x) => x,
@@ -576,4 +576,3 @@ async fn send_video_offer(rtc_conn: RtcPeerConnection, ws: WebSocket, session_id
         }
     }
 }
-

@@ -19,23 +19,12 @@ use crate::common::AppState;
 #[allow(non_snake_case)]
 pub struct IceCandidate {
     pub candidate: String,
-    pub sdpMid: String,
-    pub sdpMLineIndex: u16,
-    // pub usernameFragment: String // This seems to be specific to FireFox
+    pub sdpMid: String, // must be non-snake case as this is the key in the parsed JSON
+    pub sdpMLineIndex: u16, // must be non-snake case as this is the key in the parsed JSON
 }
 
-//  _____    _____   ______     _   _                          _     _           _     _
-// |_   _|  / ____| |  ____|   | \ | |                        | |   (_)         | |   (_)
-//   | |   | |      | |__      |  \| |   ___    __ _    ___   | |_   _    __ _  | |_   _    ___    _ __
-//   | |   | |      |  __|     | . ` |  / _ \  / _` |  / _ \  | __| | |  / _` | | __| | |  / _ \  | '_ \
-//  _| |_  | |____  | |____    | |\  | |  __/ | (_| | | (_) | | |_  | | | (_| | | |_  | | | (_) | | | | |
-// |_____|  \_____| |______|   |_| \_|  \___|  \__, |  \___/   \__| |_|  \__,_|  \__| |_|  \___/  |_| |_|
-//                                              __/ |
-//                                             |___/
-
-// As soon as This peer has an ICE Candidate then send it over the websocket connection
-#[allow(non_snake_case)]
-pub fn setup_RTCPeerConnection_ICECallbacks(
+/// As soon as this peer has an ICE candidate, send it over the websocket connection
+pub fn setup_rtc_peer_connection_ice_callbacks(
     rtc_conn: RtcPeerConnection,
     ws: WebSocket,
     rc_state: Rc<RefCell<AppState>>,
