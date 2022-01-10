@@ -6,7 +6,7 @@ use wasm_bindgen::closure::Closure;
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{Document, ErrorEvent, HtmlLabelElement, MessageEvent, RtcPeerConnection, WebSocket};
 
-use crate::{handle_message_reply, AppState};
+use crate::common::{handle_message_reply, AppState};
 
 // From Workspace
 

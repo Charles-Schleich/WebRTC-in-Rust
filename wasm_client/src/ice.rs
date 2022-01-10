@@ -6,13 +6,14 @@ use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::{JsCast, JsValue, UnwrapThrowExt};
+use wasm_bindgen_futures::JsFuture;
 use web_sys::{
     RtcIceCandidate, RtcIceCandidateInit, RtcPeerConnection, RtcPeerConnectionIceEvent, WebSocket,
 };
 
 use shared_protocol::SignalEnum;
 
-use crate::AppState;
+use crate::common::AppState;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[allow(non_snake_case)]
@@ -82,35 +83,27 @@ pub async fn received_new_ice_candidate(
 ) -> Result<(), JsValue> {
     warn!("ICECandidate Received! {}", candidate);
 
-    if candidate.is_empty() {
-        info!("ICECandidate! is empty doing nothing");
-    } else {
-        let icecandidate: IceCandidate = match serde_json_wasm::from_str(&candidate) {
-            Ok(x) => x,
-            Err(_e) => {
-                let message = format!("Could not deserialize Ice Candidate {} ", candidate);
-                return Err(JsValue::from_str(&message));
-            }
-        };
+    let icecandidate = serde_json_wasm::from_str::<IceCandidate>(&candidate).map_err(|_| {
+        let message = format!("Could not deserialize Ice Candidate {} ", candidate);
+        JsValue::from_str(&message)
+    })?;
 
-        let mut rtc_ice_init = RtcIceCandidateInit::new("");
-        rtc_ice_init.candidate(&icecandidate.candidate);
-        rtc_ice_init.sdp_m_line_index(Some(icecandidate.sdpMLineIndex));
-        rtc_ice_init.sdp_mid(Some(&icecandidate.sdpMid));
+    let mut rtc_ice_init = RtcIceCandidateInit::new("");
+    rtc_ice_init.candidate(&icecandidate.candidate);
+    rtc_ice_init.sdp_m_line_index(Some(icecandidate.sdpMLineIndex));
+    rtc_ice_init.sdp_mid(Some(&icecandidate.sdpMid));
 
-        match RtcIceCandidate::new(&rtc_ice_init) {
-            Ok(x) => {
-                let promise = rtc_conn
-                    .clone()
-                    .add_ice_candidate_with_opt_rtc_ice_candidate(Some(&x));
-                let result = wasm_bindgen_futures::JsFuture::from(promise).await?;
-                info!("Added other peer's Ice Candidate ! {:?}", result);
-            }
-            Err(e) => {
-                info!("Ice Candidate Addition error, {} | {:?}", candidate, e);
-                return Err(e);
-            }
-        };
-    }
+    match RtcIceCandidate::new(&rtc_ice_init) {
+        Ok(x) => {
+            let result =
+                JsFuture::from(rtc_conn.add_ice_candidate_with_opt_rtc_ice_candidate(Some(&x)))
+                    .await?;
+            info!("Added other peer's Ice Candidate ! {:?}", result);
+        }
+        Err(e) => {
+            info!("Ice Candidate Addition error, {} | {:?}", candidate, e);
+            return Err(e);
+        }
+    };
     Ok(())
 }
