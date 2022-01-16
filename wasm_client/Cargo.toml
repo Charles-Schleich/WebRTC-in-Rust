@@ -70,6 +70,7 @@ features = [
   "ProgressEvent",
   "HtmlButtonElement",
   "HtmlInputElement",
+  "RtcConfiguration",
 ]
 
 [dev-dependencies]
