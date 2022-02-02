@@ -1,5 +1,5 @@
 # WebRTC Tutorial in Rust+WASM !
-![Ferris](Crustacean_over_ip_smol.png)
+![Ferris](Crustacean_over_ip.png)
 
 
 
