@@ -4,8 +4,9 @@
 
 
 #### Quick prerequisites
-You will need to install `cargo make`   
+You will need to install `cargo-make` and `microserver`   
 `cargo install --force cargo-make`  
+`cargo install microserver`  
 
 ## Start Right away
 To build the wasm, from `/wasm_client/` run  
