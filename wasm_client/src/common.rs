@@ -59,16 +59,30 @@ pub fn create_plain_peer_connection() -> Result<RtcPeerConnection, JsValue> {
 }
 
 pub fn create_turn_peer_connection() -> Result<RtcPeerConnection, JsValue> {
+    
+    // STUN HERE 
+    let mut stun_server = RtcIceServer::new();
+    stun_server.url(&STUN_SERVER);
+    // let stun_server_ref: &JsValue = stun_server.as_ref();
+
+    // TURN SERVER
     let turn_url = format!("{}",TURN);
     warn!("Turn URL: {}", TURN);
-    // TURN SERVER
     let mut turn_server = RtcIceServer::new();
     turn_server.url(&turn_url);
     let r_num= f64::ceil(js_sys::Math::random()*10.0) ;
     let r_num2 = r_num as u8;
 
-    let user = format!("user{}",r_num2);
-    let pass = format!("pass{}",r_num2);
+    // let user = format!("user{}",r_num2);
+    // let pass = format!("pass{}",r_num2);
+    let user = format!("user{}",10);
+    let pass = format!("pass{}",10);
+    
+    // let user = format!("1646838660");
+    // let pass = format!("837Qi6uz7epH4wAy6dTjyTT3hDU=");
+    // let user = format!("1646840678");
+    // let pass = format!("VDQ+SaGP/ds+de3nq7g5Rjzy/9Q=");
+    
     info!("{}",format!("Creds: user:{} pass:{}",user, pass));
     turn_server.username(&user);
     turn_server.credential(&pass);
@@ -77,25 +91,23 @@ pub fn create_turn_peer_connection() -> Result<RtcPeerConnection, JsValue> {
     turn_server.credential_type(RtcIceCredentialType::Password);
     let turn_server_ref: &JsValue = turn_server.as_ref();
 
+
     let mut rtc_config = RtcConfiguration::new();
+    // let arr_ice_svr = Array::of2(turn_server_ref,stun_server_ref);
     let arr_ice_svr = Array::of1(turn_server_ref);
+    warn!("ICE server Length {}",arr_ice_svr.length());
     let arr_ice_svr_ref: &JsValue = arr_ice_svr.as_ref();
     rtc_config.ice_servers(arr_ice_svr_ref);
 
     // rtc_config.ice_transport_policy(RtcIceTransportPolicy::All);
     // warn!("All transport");
-    rtc_config.ice_transport_policy(RtcIceTransportPolicy::Relay); // This is to force use of a TURN Serverw
-    warn!("Relay only");
+    let transport_policy = RtcIceTransportPolicy::All;
+    let transport_policy = RtcIceTransportPolicy::Relay;
+    warn!("ICE transport {:?}",transport_policy);
+    rtc_config.ice_transport_policy(transport_policy); // This is to force use of a TURN Serverw
 
-    let rtc_conn = match RtcPeerConnection::new_with_configuration(&rtc_config) {
-        Ok(x) => x,
-        Err(e) => {
-            error!("Error creating RtcPeerConnection {:?}", e);
-            todo!("Could not make RtcPeerConnection");
-        }
-    };
-    warn!("Past this point ?  !");
-    Ok(rtc_conn)
+    RtcPeerConnection::new_with_configuration(&rtc_config)
+
 }
 
 pub fn create_stun_peer_connection() -> Result<RtcPeerConnection, JsValue> {

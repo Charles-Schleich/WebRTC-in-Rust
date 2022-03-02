@@ -17,6 +17,7 @@ md-5 = "0.10.0"
 thiserror = "1.0.30"
 # turn = "0.5.4"
 turn = {path ="../../turn"}
+
 # webrtc-util = "0.5.3"
 util = { package = "webrtc-util", version = "0.5.3", default-features = false, features = ["conn", "vnet"] }
 env_logger = "0.9.0"
@@ -27,5 +28,4 @@ tokio-test = "0.4.2"
 env_logger = "0.9.0"
 chrono = "0.4.19"
 hex = "0.4.3"
-clap = "2.34.0"
 criterion = "0.3.5"

@@ -47,12 +47,17 @@ impl AuthHandler for MyAuthHandler {
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     env_logger::init();
+    
+    // const SHARED_SECRET: &str = "HELLO_WORLD";
+    // let long_term_auth_handler= LongTermAuthHandler::new(SHARED_SECRET.to_string());
+    // let (user, pass) = generate_long_term_credentials(SHARED_SECRET, Duration::from_secs(600000))?;
+    
 
     let public_ip = "192.168.178.60";
     let port = "3478";
     let realm = "realm";
 
-    let mut cred_map = HashMap::new();
+    let mut cred_map: HashMap<String, Vec<u8>> = HashMap::new();
     for user_id in 0..11 {
         let user = format!("user{}",user_id);
         let pass = format!("pass{}",user_id);
@@ -71,7 +76,7 @@ async fn main() -> Result<(), Error> {
         min_port: 3000,
         max_port: 60000,
         max_retries: 10,
-        address: "0.0.0.0".to_owned(),
+        address: "192.168.178.60".to_owned(),
         net: Arc::new(Net::new(None)),
     });
 
@@ -95,6 +100,8 @@ async fn main() -> Result<(), Error> {
             // relay_addr_generator: box_relay_adress_gen_static
         }],
         realm: realm.to_owned(),
+        
+        // auth_handler: Arc::new(long_term_auth_handler),
         auth_handler: Arc::new(MyAuthHandler::new(cred_map)),
         channel_bind_timeout: Duration::from_secs(600),
     })
