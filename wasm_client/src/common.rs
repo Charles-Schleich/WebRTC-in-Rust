@@ -10,6 +10,7 @@ use web_sys::{
     Document, Element, HtmlButtonElement, HtmlInputElement, HtmlLabelElement, HtmlVideoElement,
     MediaStream, MediaStreamConstraints, MessageEvent, RtcConfiguration, RtcDataChannel,
     RtcDataChannelEvent, RtcIceConnectionState, RtcPeerConnection, WebSocket,
+    RtcIceCredentialType, RtcIceServer, RtcIceTransportPolicy,
 };
 
 use shared_protocol::{SessionID, SignalEnum, UserID};
@@ -20,6 +21,7 @@ use crate::{
 };
 
 const STUN_SERVER: &str = "stun:stun.l.google.com:19302";
+const TURN: &str = "turn:192.168.178.60:3478";
 
 #[derive(Debug)]
 pub struct AppState {
@@ -50,6 +52,50 @@ impl AppState {
     pub(crate) fn get_user_id(&mut self) -> Option<UserID> {
         self.user_id.clone()
     }
+}
+
+pub fn create_plain_peer_connection() -> Result<RtcPeerConnection, JsValue> {
+    RtcPeerConnection::new()
+}
+
+pub fn create_turn_peer_connection() -> Result<RtcPeerConnection, JsValue> {
+    let turn_url = format!("{}",TURN);
+    warn!("Turn URL: {}", TURN);
+    // TURN SERVER
+    let mut turn_server = RtcIceServer::new();
+    turn_server.url(&turn_url);
+    let r_num= f64::ceil(js_sys::Math::random()*10.0) ;
+    let r_num2 = r_num as u8;
+
+    let user = format!("user{}",r_num2);
+    let pass = format!("pass{}",r_num2);
+    info!("{}",format!("Creds: user:{} pass:{}",user, pass));
+    turn_server.username(&user);
+    turn_server.credential(&pass);
+
+    // turn_server.credential_type( RtcIceCredentialType::Token);
+    turn_server.credential_type(RtcIceCredentialType::Password);
+    let turn_server_ref: &JsValue = turn_server.as_ref();
+
+    let mut rtc_config = RtcConfiguration::new();
+    let arr_ice_svr = Array::of1(turn_server_ref);
+    let arr_ice_svr_ref: &JsValue = arr_ice_svr.as_ref();
+    rtc_config.ice_servers(arr_ice_svr_ref);
+
+    // rtc_config.ice_transport_policy(RtcIceTransportPolicy::All);
+    // warn!("All transport");
+    rtc_config.ice_transport_policy(RtcIceTransportPolicy::Relay); // This is to force use of a TURN Serverw
+    warn!("Relay only");
+
+    let rtc_conn = match RtcPeerConnection::new_with_configuration(&rtc_config) {
+        Ok(x) => x,
+        Err(e) => {
+            error!("Error creating RtcPeerConnection {:?}", e);
+            todo!("Could not make RtcPeerConnection");
+        }
+    };
+    warn!("Past this point ?  !");
+    Ok(rtc_conn)
 }
 
 pub fn create_stun_peer_connection() -> Result<RtcPeerConnection, JsValue> {

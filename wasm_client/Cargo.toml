@@ -34,7 +34,7 @@ shared-protocol = {path = "../shared-protocol"}
 
 [dependencies.web-sys]
 version = "0.3.47"
-features = [
+features = [  
   "MessageEvent",
   "RtcPeerConnection",
   "RtcSignalingState",
@@ -48,7 +48,11 @@ features = [
   "RtcDataChannelEvent",
   "RtcSessionDescription",
   "RtcIceGatheringState",
+  "RtcIceCredentialType",
+  "RtcIceTransportPolicy",
+  "RtcConfiguration",
   "Navigator",
+  "RtcIceServer",
   "MediaDevices",
   "Window", 
   "Document",
@@ -70,7 +74,6 @@ features = [
   "ProgressEvent",
   "HtmlButtonElement",
   "HtmlInputElement",
-  "RtcConfiguration",
 ]
 
 [dev-dependencies]

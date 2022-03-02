@@ -20,6 +20,8 @@ use sdp::{create_sdp_offer, receive_sdp_answer, receive_sdp_offer_send_answer};
 use utils::set_panic_hook;
 use websockets::open_web_socket;
 
+use crate::common::create_turn_peer_connection;
+
 #[wasm_bindgen(start)]
 pub async fn start() {
     set_panic_hook();
@@ -27,7 +29,9 @@ pub async fn start() {
     wasm_logger::init(wasm_logger::Config::new(log::Level::Debug));
 
     let state: Rc<RefCell<AppState>> = Rc::new(RefCell::new(AppState::new()));
-    let rtc_connection = create_stun_peer_connection().unwrap_throw();
+    let rtc_connection = create_turn_peer_connection().unwrap_throw();
+    // let rtc_connection = create_stun_peer_connection().unwrap_throw();
+    
     let websocket = open_web_socket(rtc_connection.clone(), state.clone())
         .await
         .unwrap_throw();
