@@ -101,7 +101,7 @@ pub fn create_turn_peer_connection() -> Result<RtcPeerConnection, JsValue> {
     // let transport_policy = RtcIceTransportPolicy::All;
     let transport_policy = RtcIceTransportPolicy::Relay;
     warn!("ICE transport {:?}",transport_policy);
-    rtc_config.ice_transport_policy(transport_policy); // This is to force use of a TURN Serverw
+    rtc_config.ice_transport_policy(transport_policy); // This is to force use of a TURN Server
 
     RtcPeerConnection::new_with_configuration(&rtc_config)
 
