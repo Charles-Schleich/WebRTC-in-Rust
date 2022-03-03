@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::convert::TryInto;
 use std::rc::Rc;
 
+
 use js_sys::{Array, Object, Promise, Reflect};
 use log::{debug, error, info, warn};
 use wasm_bindgen::closure::Closure;
@@ -45,6 +46,10 @@ impl AppState {
         self.session_id.clone()
     }
 
+    pub(crate) fn get_session_id_ref(&self) -> Option<SessionID> {
+        self.session_id.clone()
+    }
+
     pub(crate) fn set_user_id(&mut self, user_id: UserID) {
         self.user_id = Some(user_id)
     }
@@ -63,7 +68,6 @@ pub fn create_turn_peer_connection() -> Result<RtcPeerConnection, JsValue> {
     // STUN HERE 
     let mut stun_server = RtcIceServer::new();
     stun_server.url(&STUN_SERVER);
-    // let stun_server_ref: &JsValue = stun_server.as_ref();
 
     // TURN SERVER
     let turn_url = format!("{}",TURN);
@@ -73,16 +77,11 @@ pub fn create_turn_peer_connection() -> Result<RtcPeerConnection, JsValue> {
     let r_num= f64::ceil(js_sys::Math::random()*10.0) ;
     let r_num2 = r_num as u8;
 
-    // let user = format!("user{}",r_num2);
-    // let pass = format!("pass{}",r_num2);
-    let user = format!("user{}",10);
-    let pass = format!("pass{}",10);
-    
-    // let user = format!("1646838660");
-    // let pass = format!("837Qi6uz7epH4wAy6dTjyTT3hDU=");
-    // let user = format!("1646840678");
-    // let pass = format!("VDQ+SaGP/ds+de3nq7g5Rjzy/9Q=");
-    
+    // Both users can have the same username + password,
+    // The turn server doesnt really care
+    let user = format!("user{}",r_num2);
+    let pass = format!("pass{}",r_num2);
+
     info!("{}",format!("Creds: user:{} pass:{}",user, pass));
     turn_server.username(&user);
     turn_server.credential(&pass);
@@ -90,8 +89,6 @@ pub fn create_turn_peer_connection() -> Result<RtcPeerConnection, JsValue> {
     // turn_server.credential_type( RtcIceCredentialType::Token);
     turn_server.credential_type(RtcIceCredentialType::Password);
     let turn_server_ref: &JsValue = turn_server.as_ref();
-
-
     let mut rtc_config = RtcConfiguration::new();
     // let arr_ice_svr = Array::of2(turn_server_ref,stun_server_ref);
     let arr_ice_svr = Array::of1(turn_server_ref);
@@ -101,7 +98,7 @@ pub fn create_turn_peer_connection() -> Result<RtcPeerConnection, JsValue> {
 
     // rtc_config.ice_transport_policy(RtcIceTransportPolicy::All);
     // warn!("All transport");
-    let transport_policy = RtcIceTransportPolicy::All;
+    // let transport_policy = RtcIceTransportPolicy::All;
     let transport_policy = RtcIceTransportPolicy::Relay;
     warn!("ICE transport {:?}",transport_policy);
     rtc_config.ice_transport_policy(transport_policy); // This is to force use of a TURN Serverw
@@ -174,6 +171,9 @@ pub async fn handle_message_reply(
         SignalEnum::SessionJoinSuccess(session_id) => {
             info!("SessionJoinSuccess {}", session_id.clone().inner());
             set_session_connection_status_error("".into());
+            let mut state = app_state.borrow_mut();
+            state.set_session_id(session_id.clone());
+            drop(state);
             // Initiate the video call
             send_video_offer(
                 peer_connection.clone(),
@@ -181,7 +181,7 @@ pub async fn handle_message_reply(
                 session_id.clone(),
             )
             .await;
-            let full_string = format!("Connected to Session: {}", session_id.inner());
+            let full_string = format!("Connecting to Session: {}", session_id.inner());
             set_html_label("session_connection_status", full_string);
             set_html_label("sessionid_heading", "".into());
         }
@@ -258,10 +258,7 @@ pub async fn get_video(video_id: String) -> Result<MediaStream, JsValue> {
         }
     };
 
-    // debug!("vid_elem {:?}", vid_elem);
     vid_elem.set_src_object(Some(&media_stream));
-    // debug!("media_stream {:?}", media_stream);
-
     Ok(media_stream)
 }
 
@@ -393,10 +390,18 @@ pub async fn setup_listener(
         let rc_state_clone = rc_state_clone_internal;
 
         // Setup ICE callbacks
-        let res = setup_rtc_peer_connection_ice_callbacks(peer_b_clone, ws_clone1, rc_state_clone);
-        if res.is_err() {
-            log::error!("Error Setting up ice callbacks {:?}", res.unwrap_err())
-        }
+        // let res = setup_rtc_peer_connection_ice_callbacks(peer_b_clone, ws_clone1, rc_state_clone).await;
+        // if res.is_err() {
+        //     log::error!("Error Setting up ice callbacks {:?}", res.unwrap_err())
+        // }
+
+        wasm_bindgen_futures::spawn_local(async move {
+            let res = setup_rtc_peer_connection_ice_callbacks(peer_b_clone, ws_clone1, rc_state_clone).await;
+                if res.is_err() {
+                    log::error!("Error Setting up ice callbacks {:?}", res.unwrap_err())
+                }
+        });
+
 
         host_session(ws_clone);
     }) as Box<dyn FnMut()>);
@@ -471,14 +476,23 @@ pub async fn setup_initiator(
         let peer_a_clone = peer_a_clone_external.clone();
         let rc_state_clone = rc_state_clone_ext.clone();
 
-        let res =
-            setup_rtc_peer_connection_ice_callbacks(peer_a_clone, ws_clone.clone(), rc_state_clone);
-        if res.is_err() {
-            error!(
-                "Error Setting up RTCPeerConnection ICE Callbacks {:?}",
-                res.unwrap_err()
-            )
-        }
+        // let res =
+        //     setup_rtc_peer_connection_ice_callbacks(peer_a_clone, ws_clone.clone(), rc_state_clone);
+        // if res.is_err() {
+        //     error!(
+        //         "Error Setting up RTCPeerConnection ICE Callbacks {:?}",
+        //         res.unwrap_err()
+        //     )
+        // }
+
+        let ws_clone1 = ws_clone.clone();
+        wasm_bindgen_futures::spawn_local(async move {
+            let res = setup_rtc_peer_connection_ice_callbacks(peer_a_clone, ws_clone1, rc_state_clone).await;
+                if res.is_err() {
+                    log::error!("Error Setting up ice callbacks {:?}", res.unwrap_err())
+                }
+        });
+
 
         try_connect_to_session(ws_clone);
     }) as Box<dyn FnMut()>);

@@ -1626,6 +1626,8 @@ dependencies = [
 [[package]]
 name = "turn"
 version = "0.5.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "82674a80a4754ca9f6f5e132698ee3060ff9d3ef8cd690d66589d0f318b71670"
 dependencies = [
  "async-trait",
  "base64",

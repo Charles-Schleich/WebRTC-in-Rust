@@ -51,7 +51,6 @@ async fn main() -> Result<(), Error> {
     // const SHARED_SECRET: &str = "HELLO_WORLD";
     // let long_term_auth_handler= LongTermAuthHandler::new(SHARED_SECRET.to_string());
     // let (user, pass) = generate_long_term_credentials(SHARED_SECRET, Duration::from_secs(600000))?;
-    
 
     let public_ip = "192.168.178.60";
     let port = "3478";
@@ -66,10 +65,9 @@ async fn main() -> Result<(), Error> {
         cred_map.insert(user.to_owned(), key);
     }
 
-    let conn = Arc::new(UdpSocket::bind(format!("192.168.178.60:{}", port)).await?);
-    // let conn = Arc::new(UdpSocket::bind(format!("0.0.0.0:{}", port)).await?);
+    // let conn = Arc::new(UdpSocket::bind(format!("192.168.178.60:{}", port)).await?);
+    let conn = Arc::new(UdpSocket::bind(format!("0.0.0.0:{}", port)).await?);
     println!("listening {}...", conn.local_addr()?);
-
 
     let box_relay_adress_genenrator_range = Box::new(RelayAddressGeneratorRanges{
         relay_address: IpAddr::from_str(public_ip)?,
@@ -80,24 +78,16 @@ async fn main() -> Result<(), Error> {
         net: Arc::new(Net::new(None)),
     });
 
-
     let box_relay_adress_gen_static = Box::new(RelayAddressGeneratorStatic{
         relay_address: IpAddr::from_str(public_ip)?,
         address: "0.0.0.0".to_owned(),
         net: Arc::new(Net::new(None)),
     });
 
-    // Box::new(RelayAddressGeneratorStatic {
-    //     relay_address: IpAddr::from_str(public_ip)?,
-    //     address: "0.0.0.0".to_owned(),
-    //     net: Arc::new(Net::new(None)),
-    // });
-
     let server = Server::new(ServerConfig {
         conn_configs: vec![ConnConfig {
             conn,
             relay_addr_generator: box_relay_adress_genenrator_range
-            // relay_addr_generator: box_relay_adress_gen_static
         }],
         realm: realm.to_owned(),
         

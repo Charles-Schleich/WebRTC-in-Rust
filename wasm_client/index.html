@@ -5,6 +5,22 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <title>WebRTC-in-Rust</title>
+    <style>
+        @keyframes changeColor {
+            0% {color: rgb(29, 161, 69);}
+            50% {color: rgb(9, 9, 207);}
+            100% {color: rgb(29, 161, 69);}
+        }
+
+        .sinulabel {
+            /* color: rgb(8, 8, 156); */
+            animation: changeColor ease;
+            animation-iteration-count: infinite;
+            animation-duration: 4s;
+            animation-fill-mode: both;
+        }
+        
+    </style>
 </head>
 
 <body style="background-color:rgb(90, 36, 14);">
@@ -13,10 +29,11 @@
         <h1><a title="WebRTC in RUST !" style="color: white;">WebRTC in Rust</a></h1>
 
         <label id="sessionid_heading" style="color: rgb(145, 133, 197);">Hosting Session ID:</label> 
-        <label id="sessionid_lbl" style="color: rgb(143, 137, 201);"></label>
+        <label class= "sinulabel" id="sessionid_lbl" ></label>
+        <!-- <label class= "sinulabel" id="sessionid_lbl" style="color: rgb(29, 161, 69);" ></label> -->
         <br>
         <label id="session_connection_status" style="color: rgb(255, 255, 255);"></label>
-        <label id="session_connection_status_error" style="color: rgb(200, 10, 10);"></label>
+        <label  id="session_connection_status_error" style="color: rgb(207, 9, 9);"></label>
 
 
         <h3><a title="Peer A Video" style="color: white; ">Peer A Video</a></h3>
@@ -42,7 +59,6 @@
         <button id="start_session" style="height:50px">Start Session</button>
 
     </div>
-
 
     <script type="module">
         import init from '/pkg/wasm_client.js';

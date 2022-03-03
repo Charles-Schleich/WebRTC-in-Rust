@@ -23,48 +23,81 @@ pub struct IceCandidate {
     pub sdpMLineIndex: u16, // must be non-snake case as this is the key in the parsed JSON
 }
 
-/// As soon as this peer has an ICE candidate, send it over the websocket connection
-pub fn setup_rtc_peer_connection_ice_callbacks(
+pub async fn setup_rtc_peer_connection_ice_callbacks(
     rtc_conn: RtcPeerConnection,
     ws: WebSocket,
     rc_state: Rc<RefCell<AppState>>,
 ) -> Result<RtcPeerConnection, JsValue> {
     let onicecandidate_callback =
         Closure::wrap(
-            Box::new(move |ev: RtcPeerConnectionIceEvent| match ev.candidate() {
-                Some(candidate) => {
-                    let json_obj_candidate = candidate.to_json();
-                    let res = JSON::stringify(&json_obj_candidate).unwrap_throw();
-
-                    let js_ob = String::from(res.clone());
-
-                    let mut state = rc_state.borrow_mut();
-                    let session_id = match state.get_session_id() {
-                        Some(sid) => sid,
-                        None => {
-                            error!("No Session ID has been set yet");
-                            return;
-                        }
-                    };
-
-                    let signal = SignalEnum::IceCandidate(js_ob, session_id);
-                    let ice_candidate: String = serde_json_wasm::to_string(&signal).unwrap();
-
-                    info!("Sending IceCandidate to Other peer {:?}", res);
-                    match ws.send_with_str(&ice_candidate) {
-                        Ok(_) => info!("IceCandidate sent {}", ice_candidate),
-                        Err(err) => error!("error sending IceCandidate SignalEnum: {:?}", err),
-                    }
+            Box::new(move |ev: RtcPeerConnectionIceEvent| 
+                {
+                    let ws = ws.clone();
+                    let rc_state = rc_state.clone();
+                    send_ice_candidate(ws,rc_state,ev);
                 }
-                None => {
-                    info!("No ICE candidate found");
-                }
-            }) as Box<dyn FnMut(RtcPeerConnectionIceEvent)>,
+            ) as Box<dyn FnMut(RtcPeerConnectionIceEvent)>,
         );
     rtc_conn.set_onicecandidate(Some(onicecandidate_callback.as_ref().unchecked_ref()));
     onicecandidate_callback.forget();
     Ok(rtc_conn)
 }
+
+
+pub fn sleep(ms: i32) -> js_sys::Promise {
+    js_sys::Promise::new(&mut |resolve, _| {
+        web_sys::window()
+            .unwrap()
+            .set_timeout_with_callback_and_timeout_and_arguments_0(&resolve, ms)
+            .unwrap();
+    })
+}
+
+pub fn send_ice_candidate(
+    ws: WebSocket,
+    rc_state: Rc<RefCell<AppState>>,
+    ev: RtcPeerConnectionIceEvent
+) {
+    match ev.candidate() {
+        Some(candidate) => {
+            let json_obj_candidate = candidate.to_json();
+            let res = JSON::stringify(&json_obj_candidate).unwrap_throw();
+
+            let js_ob = String::from(res.clone());
+            
+            let ws= ws.clone();
+            let rc_state = rc_state.clone();
+
+            let state = rc_state.borrow();
+            let opt_session_id = state.get_session_id_ref().clone();
+            drop(state);
+            let session_id = match opt_session_id {
+                Some(sid) => sid,
+                None => {
+                    error!("No Session ID has been set yet");
+                    let sleep_promise= sleep(3000);
+                    wasm_bindgen_futures::spawn_local(async move {
+                        let _ = wasm_bindgen_futures::JsFuture::from(sleep_promise).await;
+                        send_ice_candidate(ws,rc_state,ev);
+                        error!("Session ID set now ???? ");
+                    });
+                    return;
+                }
+            };
+            let signal = SignalEnum::IceCandidate(js_ob, session_id);
+            let ice_candidate: String = serde_json_wasm::to_string(&signal).unwrap();
+            info!("Sending IceCandidate to Other peer {:?}", res);
+            match ws.send_with_str(&ice_candidate) {
+                Ok(_) => info!("IceCandidate sent {}", ice_candidate),
+                Err(err) => error!("error sending IceCandidate SignalEnum: {:?}", err),
+            }
+        }
+        None => {
+            info!("No ICE candidate in RtcPeerConnectionIceEvent");
+        }
+    }
+}
+
 
 pub async fn received_new_ice_candidate(
     candidate: String,

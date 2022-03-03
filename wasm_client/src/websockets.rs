@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use log::{debug, error, info};
+use log::{error, info};
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{Document, ErrorEvent, HtmlLabelElement, MessageEvent, RtcPeerConnection, WebSocket};
@@ -43,11 +43,9 @@ pub async fn open_web_socket(
         } else if let Ok(txt) = ev.data().dyn_into::<js_sys::JsString>() {
             info!("WS: message event, received string: {:?}", txt);
             let rust_string = String::from(txt);
-            // put the below line in an async
             let rtc_conn_clone = rtc_conn.clone();
             let cloned_ws = cloned_ws_ext.clone();
             let cloned_state = cloned_state_ext.clone();
-
             wasm_bindgen_futures::spawn_local(async move {
                 let result = handle_message_reply(
                     rust_string,
@@ -59,7 +57,7 @@ pub async fn open_web_socket(
                 match result {
                     Err(x) => error!("{:?}", x),
                     _ => {
-                        debug!("Handle Signalling message done")
+                        // debug!("Handle Signalling message done")
                     }
                 }
             });

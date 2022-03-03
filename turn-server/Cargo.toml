@@ -15,8 +15,8 @@ rand = "0.8.4"
 ring = "0.16.20"
 md-5 = "0.10.0"
 thiserror = "1.0.30"
-# turn = "0.5.4"
-turn = {path ="../../turn"}
+turn = "0.5.4"
+# turn = {path ="../../turn"}
 
 # webrtc-util = "0.5.3"
 util = { package = "webrtc-util", version = "0.5.3", default-features = false, features = ["conn", "vnet"] }
