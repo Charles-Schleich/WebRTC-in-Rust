@@ -1,5 +1,10 @@
 # WebRTC Tutorial in Rust+WASM !
-![Ferris](Crustacean_over_ip.png)
+
+<!-- ![Ferris](Crustacean_over_ip.png) -->
+<h1 align="center">
+ <a><img src="./Crustacean_over_ip.png" alt="WebRTC in Rust"></a>
+ <br>
+</h1>
 
 
 
