@@ -21,8 +21,10 @@ To run the servers (Can be done from root directory)
 Terminal 1 🚀 : `cargo make serve`  
 Terminal 2 🔌 : `cargo make servesignal`  
 
-! Don't forget to set your own ip address for your web-socket's signalling server inside `/wasm_client/src/websockets.rs`
+⚠️ Don't forget to set your own ip address for your web-socket's signalling server inside `/wasm_client/src/websockets.rs`
   
+This is to be read with the following [Medium Article](https://charles-schleich.medium.com/webrtc-video-chat-tutorial-using-rust-wasm-fa340f7aeef9).  
+
 
 ## Useful Terminology
 - ICE : Interactive Connectivity Establishment
@@ -36,4 +38,4 @@ Terminal 2 🔌 : `cargo make servesignal`
 This is something that be implemented by the programmer, this project makes use of websockets to achieve this.
 
 
-This is to be read with the following [Medium Article](https://charles-schleich.medium.com/webrtc-video-chat-tutorial-using-rust-wasm-fa340f7aeef9).
+
