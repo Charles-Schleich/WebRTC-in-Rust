@@ -14,11 +14,15 @@ You will need to install `cargo-make` and `microserver`
 `cargo install microserver`  
 
 ## Start Right away
-To build the wasm, from `/wasm_client/` run  
-Terminal 1 🛠 : `cargo make build` or `cargo make watch` (if you plan on tinkering)  
+You need two terminals.
 
-To run the servers (Can be done from root directory)  
+From Terminal 1  
+Terminal 1 🛠 : cd `/wasm_client/`  
+Terminal 1 🛠 : `cargo make build` or `cargo make watch` (if you plan on tinkering)  
 Terminal 1 🚀 : `cargo make serve`  
+
+From Terminal 2:  
+Terminal 2 🔌 : `cd ../signalling-server`  
 Terminal 2 🔌 : `cargo make servesignal`  
 
 ⚠️ Don't forget to set your own ip address for your web-socket's signalling server inside `/wasm_client/src/websockets.rs`
