@@ -17,12 +17,12 @@ You will need to install `cargo-make` and `microserver`
 You need two terminals opened in the root directory of the project.
 
 From Terminal 1  
-Terminal 1 🛠 : `cd /wasm_client/`  
+Terminal 1 🛠 : `cd ./wasm_client`  
 Terminal 1 🛠 : `cargo make build` or `cargo make watch` (if you plan on tinkering)  
 Terminal 1 🚀 : `cargo make serve`  
 
 From Terminal 2:  
-Terminal 2 🔌 : `cd /signalling-server`  
+Terminal 2 🔌 : `cd ./signalling-server`  
 Terminal 2 🔌 : `cargo make servesignal`  
 
 ⚠️ Don't forget to set your own ip address for your web-socket's signalling server inside `/wasm_client/src/websockets.rs`
